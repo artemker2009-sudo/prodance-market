@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
-import { LockKeyhole, Phone } from 'lucide-react'
+import { Eye, EyeOff, LockKeyhole, Phone } from 'lucide-react'
 
 import { supabase } from '../lib/supabase'
 
@@ -69,6 +69,7 @@ export default function LoginPage() {
   const router = useRouter()
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -87,20 +88,40 @@ export default function LoginPage() {
 
     setLoading(true)
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: pseudoEmail,
-      password,
-    })
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: pseudoEmail,
+        password,
+      })
 
-    setLoading(false)
+      if (signInError) {
+        throw signInError
+      }
 
-    if (signInError) {
-      setError(signInError.message)
-      return
+      router.push('/market')
+      router.refresh()
+    } catch (caughtError) {
+      const message =
+        caughtError instanceof Error ? caughtError.message : String(caughtError)
+
+      if (message.includes('Invalid login credentials')) {
+        setError(
+          'Такой номер не зарегистрирован или указан неверный пароль. Проверьте данные или зарегистрируйтесь.'
+        )
+        return
+      }
+
+      if (message.includes('Load failed') || message.includes('Failed to fetch')) {
+        setError(
+          'Ошибка соединения с сервером. Проверьте интернет или перезагрузите страницу.'
+        )
+        return
+      }
+
+      setError(message)
+    } finally {
+      setLoading(false)
     }
-
-    router.push('/market')
-    router.refresh()
   }
 
   return (
@@ -133,17 +154,29 @@ export default function LoginPage() {
 
           <label className="block space-y-2">
             <span className="text-sm font-medium text-gray-700">Пароль</span>
-            <div className="flex items-center gap-3 rounded-xl border border-gray-300 bg-white p-3">
-              <LockKeyhole className="h-5 w-5 text-gray-400" />
+            <div className="relative rounded-xl border border-gray-300 bg-white p-3">
+              <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 placeholder="Пароль"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="w-full border-0 bg-transparent text-base text-gray-900 outline-none"
+                className="w-full border-0 bg-transparent pl-8 pr-10 text-base text-gray-900 outline-none"
                 required
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-500 cursor-pointer"
+                aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
             </div>
           </label>
 

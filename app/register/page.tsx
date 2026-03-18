@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   ArrowRight,
   ChevronDown,
+  Eye,
+  EyeOff,
   LockKeyhole,
   MapPin,
   Phone,
@@ -132,6 +134,9 @@ export default function RegisterPage() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [city, setCity] = useState('')
   const [citySearch, setCitySearch] = useState('')
   const [isCitySheetOpen, setIsCitySheetOpen] = useState(false)
@@ -177,32 +182,50 @@ export default function RegisterPage() {
       return
     }
 
+    if (password !== confirmPassword) {
+      setError('Пароли не совпадают')
+      return
+    }
+
     const normalizedPhone = `+${cleanPhone}`
     const pseudoEmail = `${cleanPhone}@prodance.app`
 
     setLoading(true)
 
-    const { error: signUpError } = await supabase.auth.signUp({
-      email: pseudoEmail,
-      password,
-      options: {
-        data: {
-          name: name.trim(),
-          city,
-          phone: normalizedPhone,
+    try {
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: pseudoEmail,
+        password,
+        options: {
+          data: {
+            name: name.trim(),
+            city,
+            phone: normalizedPhone,
+          },
         },
-      },
-    })
+      })
 
-    setLoading(false)
+      if (signUpError) {
+        throw signUpError
+      }
 
-    if (signUpError) {
-      setError(signUpError.message)
-      return
+      router.push('/market')
+      router.refresh()
+    } catch (caughtError) {
+      const message =
+        caughtError instanceof Error ? caughtError.message : String(caughtError)
+
+      if (message.includes('Load failed') || message.includes('Failed to fetch')) {
+        setError(
+          'Ошибка соединения с сервером. Проверьте интернет или перезагрузите страницу.'
+        )
+        return
+      }
+
+      setError(message)
+    } finally {
+      setLoading(false)
     }
-
-    router.push('/market')
-    router.refresh()
   }
 
   return (
@@ -260,17 +283,61 @@ export default function RegisterPage() {
 
           <label className="block space-y-2">
             <span className="text-sm font-medium text-neutral-700">Пароль</span>
-            <div className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 focus-within:border-neutral-950 focus-within:bg-white">
-              <LockKeyhole className="h-5 w-5 text-neutral-400" />
+            <div className="relative rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 focus-within:border-neutral-950 focus-within:bg-white">
+              <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
                 placeholder="Придумайте пароль"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="w-full bg-transparent text-base outline-none placeholder:text-neutral-400"
+                className="w-full bg-transparent pl-8 pr-10 text-base outline-none placeholder:text-neutral-400"
                 required
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 transition hover:text-slate-500"
+                aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+          </label>
+
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-neutral-700">
+              Повторите пароль
+            </span>
+            <div className="relative rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 focus-within:border-neutral-950 focus-within:bg-white">
+              <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                placeholder="Повторите пароль"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                className="w-full bg-transparent pl-8 pr-10 text-base outline-none placeholder:text-neutral-400"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((current) => !current)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 transition hover:text-slate-500"
+                aria-label={
+                  showConfirmPassword ? 'Скрыть повтор пароля' : 'Показать повтор пароля'
+                }
+              >
+                {showConfirmPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
             </div>
           </label>
 
