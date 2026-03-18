@@ -170,14 +170,17 @@ export default function RegisterPage() {
     event.preventDefault()
     setError('')
 
-    const cleanPhone = normalizePhone(phone)
+    const phoneValue = phone.trim()
+    const nameValue = name.trim()
+    const cityValue = city.trim()
+    const cleanPhone = phoneValue.replace(/\D/g, '')
 
-    if (!cleanPhone) {
+    if (!cleanPhone || cleanPhone.length < 10) {
       setError('Введите корректный номер телефона')
       return
     }
 
-    if (!city) {
+    if (!cityValue) {
       setError('Выберите город')
       return
     }
@@ -187,8 +190,8 @@ export default function RegisterPage() {
       return
     }
 
-    const normalizedPhone = `+${cleanPhone}`
     const pseudoEmail = `${cleanPhone}@prodance.app`
+    console.log('Trying to auth with:', pseudoEmail)
 
     setLoading(true)
 
@@ -198,9 +201,8 @@ export default function RegisterPage() {
         password,
         options: {
           data: {
-            name: name.trim(),
-            city,
-            phone: normalizedPhone,
+            name: nameValue,
+            city: cityValue,
           },
         },
       })

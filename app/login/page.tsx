@@ -77,14 +77,16 @@ export default function LoginPage() {
     event.preventDefault()
     setError('')
 
-    const cleanPhone = normalizePhone(phone)
+    const phoneValue = phone.trim()
+    const cleanPhone = phoneValue.replace(/\D/g, '')
 
-    if (!cleanPhone) {
+    if (!cleanPhone || cleanPhone.length < 10) {
       setError('Введите корректный номер телефона')
       return
     }
 
     const pseudoEmail = `${cleanPhone}@prodance.app`
+    console.log('Trying to auth with:', pseudoEmail)
 
     setLoading(true)
 
