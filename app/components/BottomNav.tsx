@@ -26,16 +26,16 @@ const navItems: NavItem[] = [
     match: (pathname) => pathname === '/',
   },
   {
-    href: '/market',
+    href: '/search',
     label: 'Поиск',
     icon: Search,
-    match: (pathname) => pathname.startsWith('/market') && !pathname.startsWith('/market/create'),
+    match: (pathname) => pathname.startsWith('/search'),
   },
   {
-    href: '/market/create',
+    href: '/create',
     label: 'Разместить',
     icon: CirclePlus,
-    match: (pathname) => pathname.startsWith('/market/create'),
+    match: (pathname) => pathname.startsWith('/create'),
     isAccent: true,
   },
   {

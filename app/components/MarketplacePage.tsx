@@ -47,7 +47,7 @@ export async function MarketplacePage({
 
               <div className="ml-auto flex items-center gap-2">
                 <Link
-                  href="/market/create"
+                  href="/create"
                   className="inline-flex h-10 items-center justify-center rounded-full bg-slate-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-fuchsia-700"
                 >
                   Продать
@@ -141,7 +141,7 @@ export async function MarketplacePage({
                 танцевального сообщества.
               </p>
               <Link
-                href="/market/create"
+                href="/create"
                 className="mt-6 inline-flex h-11 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-fuchsia-700"
               >
                 Добавить первый товар
