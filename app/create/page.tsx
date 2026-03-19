@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { ArrowLeft, Plus, Star } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 
 import { supabase } from '../lib/supabase'
@@ -16,6 +16,7 @@ export default function CreatePage() {
   const [gender, setGender] = useState<(typeof genders)[number]>('Женское')
   const [photoFiles, setPhotoFiles] = useState<File[]>([])
   const [previewUrls, setPreviewUrls] = useState<string[]>([])
+  const [mainPhotoIndex, setMainPhotoIndex] = useState(0)
   const previewUrlsRef = useRef<string[]>([])
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -65,7 +66,7 @@ export default function CreatePage() {
     setIsSubmitting(true)
 
     try {
-      const mainPhoto = photoFiles[0]
+      const mainPhoto = photoFiles[mainPhotoIndex] ?? photoFiles[0]
       const fileName = `${Date.now()}-${mainPhoto.name.replace(/\s+/g, '-')}`
 
       const { error: uploadError } = await supabase.storage
@@ -174,12 +175,25 @@ export default function CreatePage() {
           {previewUrls.length > 0 ? (
             <div className="mt-4 grid grid-cols-3 gap-3">
               {previewUrls.map((previewUrl, index) => (
-                <img
-                  key={`${photoFiles[index]?.name ?? 'photo'}-${index}`}
-                  src={previewUrl}
-                  alt={photoFiles[index]?.name ?? `Фото ${index + 1}`}
-                  className="w-full aspect-square object-cover rounded-xl shadow-sm"
-                />
+                <div key={`${photoFiles[index]?.name ?? 'photo'}-${index}`} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setMainPhotoIndex(index)}
+                    className="absolute top-2 right-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border-0 bg-transparent p-0"
+                    aria-label={index === mainPhotoIndex ? 'Главное фото' : 'Сделать главным'}
+                  >
+                    <Star
+                      className={`h-5 w-5 ${
+                        index === mainPhotoIndex ? 'fill-blue-600 text-blue-600' : 'text-white drop-shadow-md'
+                      }`}
+                    />
+                  </button>
+                  <img
+                    src={previewUrl}
+                    alt={photoFiles[index]?.name ?? `Фото ${index + 1}`}
+                    className="w-full aspect-square object-cover rounded-xl shadow-sm"
+                  />
+                </div>
               ))}
             </div>
           ) : null}
@@ -309,9 +323,9 @@ export default function CreatePage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex h-14 w-full items-center justify-center rounded-2xl bg-slate-950 text-base font-semibold text-white shadow-lg shadow-slate-950/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="relative z-50 flex h-14 w-full cursor-pointer items-center justify-center rounded-2xl bg-slate-950 text-base font-semibold text-white shadow-lg shadow-slate-950/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? 'Публикация...' : 'Опубликовать'}
+            {isSubmitting ? 'Публикуем...' : 'Опубликовать'}
           </button>
         </div>
       </form>
