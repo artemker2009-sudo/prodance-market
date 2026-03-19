@@ -32,8 +32,16 @@ export default function CreatePage() {
   }, [])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    console.log('Submit attempt')
     event.preventDefault()
     setError('')
+
+    const formData = new FormData(event.currentTarget)
+    const title = formData.get('title')?.toString().trim() ?? ''
+    const size = formData.get('size')?.toString().trim() ?? ''
+    const priceValue = formData.get('price')?.toString().trim() ?? ''
+    const description = formData.get('description')?.toString().trim() ?? ''
+    const price = Number(priceValue)
 
     const {
       data: { user },
@@ -50,13 +58,6 @@ export default function CreatePage() {
       setError('Добавьте фото товара')
       return
     }
-
-    const formData = new FormData(event.currentTarget)
-    const title = formData.get('title')?.toString().trim() ?? ''
-    const size = formData.get('size')?.toString().trim() ?? ''
-    const priceValue = formData.get('price')?.toString().trim() ?? ''
-    const description = formData.get('description')?.toString().trim() ?? ''
-    const price = Number(priceValue)
 
     if (!title || !size || !priceValue || Number.isNaN(price)) {
       setError('Заполните все обязательные поля')
@@ -146,6 +147,7 @@ export default function CreatePage() {
       <form
         id="create-listing-form"
         onSubmit={handleSubmit}
+        noValidate
         className="space-y-5 px-4 py-5 pb-40"
       >
         <label className="block">
