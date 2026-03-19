@@ -43,6 +43,11 @@ export default function CreatePage() {
     const description = formData.get('description')?.toString().trim() ?? ''
     const price = Number(priceValue)
 
+    if (!title || !priceValue || !size) {
+      setError('Заполните все поля')
+      return
+    }
+
     const {
       data: { user },
       error: authError,
@@ -59,7 +64,7 @@ export default function CreatePage() {
       return
     }
 
-    if (!title || !size || !priceValue || Number.isNaN(price)) {
+    if (Number.isNaN(price)) {
       setError('Заполните все обязательные поля')
       return
     }
@@ -126,7 +131,7 @@ export default function CreatePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#faf7f3] text-slate-950">
+    <main className="min-h-screen bg-[#faf7f3] pb-48 text-slate-950">
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-[#faf7f3]/95 backdrop-blur">
         <div className="flex items-center gap-3 px-4 py-4">
           <Link
@@ -324,8 +329,9 @@ export default function CreatePage() {
         <div className="relative z-[100] mt-8">
           <button
             type="submit"
+            onClick={() => console.log('Кнопка нажата!')}
             disabled={isSubmitting}
-            className="flex h-14 w-full cursor-pointer items-center justify-center rounded-2xl bg-slate-950 text-base font-semibold text-white shadow-lg shadow-slate-950/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="relative z-[100] flex h-14 w-full cursor-pointer touch-manipulation items-center justify-center rounded-2xl bg-slate-950 text-base font-semibold text-white shadow-lg shadow-slate-950/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? 'Публикуем...' : 'Опубликовать'}
           </button>
