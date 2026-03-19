@@ -319,11 +319,11 @@ export default function CreatePage() {
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </section>
 
-        <div className="mt-8">
+        <div className="relative z-[100] mt-8">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="relative z-50 flex h-14 w-full cursor-pointer items-center justify-center rounded-2xl bg-slate-950 text-base font-semibold text-white shadow-lg shadow-slate-950/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex h-14 w-full cursor-pointer items-center justify-center rounded-2xl bg-slate-950 text-base font-semibold text-white shadow-lg shadow-slate-950/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? 'Публикуем...' : 'Опубликовать'}
           </button>
