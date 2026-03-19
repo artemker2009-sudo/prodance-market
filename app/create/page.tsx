@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { ArrowLeft, Camera, Star } from 'lucide-react'
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 
@@ -16,24 +15,16 @@ export default function CreatePage() {
   const [category, setCategory] = useState<(typeof categories)[number]>('Турнирное')
   const [gender, setGender] = useState<(typeof genders)[number]>('Женское')
   const [photoFiles, setPhotoFiles] = useState<File[]>([])
-  const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([])
+  const [previewUrls, setPreviewUrls] = useState<string[]>([])
   const [mainPhotoIndex, setMainPhotoIndex] = useState(0)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
-    if (!photoFiles.length) {
-      setPhotoPreviewUrls([])
-      return
-    }
-
-    const nextPreviewUrls = photoFiles.map((file) => URL.createObjectURL(file))
-    setPhotoPreviewUrls(nextPreviewUrls)
-
     return () => {
-      nextPreviewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl))
+      previewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl))
     }
-  }, [photoFiles])
+  }, [previewUrls])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -120,22 +111,10 @@ export default function CreatePage() {
       return
     }
 
-    setPhotoFiles((currentFiles) => {
-      const existingFileKeys = new Set(
-        currentFiles.map((file) => `${file.name}-${file.size}-${file.lastModified}`)
-      )
-      const uniqueNextFiles = nextFiles.filter((file) => {
-        const fileKey = `${file.name}-${file.size}-${file.lastModified}`
-        return !existingFileKeys.has(fileKey)
-      })
-
-      if (!currentFiles.length && uniqueNextFiles.length) {
-        setMainPhotoIndex(0)
-      }
-
-      return uniqueNextFiles.length ? [...currentFiles, ...uniqueNextFiles] : currentFiles
-    })
-
+    previewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl))
+    setPhotoFiles(nextFiles)
+    setPreviewUrls(nextFiles.map((file) => URL.createObjectURL(file)))
+    setMainPhotoIndex(0)
     setError('')
     event.target.value = ''
   }
@@ -162,7 +141,7 @@ export default function CreatePage() {
       <form
         id="create-listing-form"
         onSubmit={handleSubmit}
-        className="space-y-5 px-4 py-5 pb-48"
+        className="space-y-5 px-4 py-5 pb-40"
       >
         <label className="block">
           <span className="mb-3 block text-sm font-medium text-slate-600">Фото</span>
@@ -190,9 +169,9 @@ export default function CreatePage() {
             ) : null}
           </div>
 
-          {photoFiles.length ? (
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              {photoPreviewUrls.map((previewUrl, index) => {
+          {previewUrls.length > 0 ? (
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              {previewUrls.map((previewUrl, index) => {
                 const isMainPhoto = index === mainPhotoIndex
 
                 return (
@@ -225,15 +204,11 @@ export default function CreatePage() {
                       <Star className={`h-4 w-4 ${isMainPhoto ? 'fill-current' : ''}`} />
                     </button>
 
-                    <div className="relative aspect-square">
-                      <Image
-                        src={previewUrl}
-                        alt={photoFiles[index]?.name ?? `Фото ${index + 1}`}
-                        fill
-                        unoptimized
-                        className="object-cover"
-                      />
-                    </div>
+                    <img
+                      src={previewUrl}
+                      alt={photoFiles[index]?.name ?? `Фото ${index + 1}`}
+                      className="w-full aspect-square object-cover rounded-xl shadow-sm"
+                    />
                   </div>
                 )
               })}
@@ -363,18 +338,17 @@ export default function CreatePage() {
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </section>
-      </form>
 
-      <div className="fixed bottom-0 left-1/2 z-30 w-full max-w-[480px] -translate-x-1/2 border-t border-slate-200/80 bg-white/95 px-4 py-4 backdrop-blur [padding-bottom:max(1rem,env(safe-area-inset-bottom))]">
-        <button
-          type="submit"
-          form="create-listing-form"
-          disabled={isSubmitting}
-          className="flex h-14 w-full items-center justify-center rounded-2xl bg-slate-950 text-base font-semibold text-white shadow-lg shadow-slate-950/20 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSubmitting ? 'Публикация...' : 'Опубликовать'}
-        </button>
-      </div>
+        <div className="mt-8">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="flex h-14 w-full items-center justify-center rounded-2xl bg-slate-950 text-base font-semibold text-white shadow-lg shadow-slate-950/20 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSubmitting ? 'Публикация...' : 'Опубликовать'}
+          </button>
+        </div>
+      </form>
     </main>
   )
 }
