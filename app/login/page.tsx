@@ -53,18 +53,6 @@ function formatPhoneInput(value: string) {
   return formatted
 }
 
-function normalizePhone(value: string) {
-  let digits = value.replace(/\D/g, '')
-
-  if (digits.length === 10) {
-    digits = `7${digits}`
-  } else if (digits.length === 11 && digits[0] === '8') {
-    digits = `7${digits.slice(1)}`
-  }
-
-  return digits.length === 11 ? digits : ''
-}
-
 export default function LoginPage() {
   const router = useRouter()
   const [phone, setPhone] = useState('')
@@ -86,7 +74,6 @@ export default function LoginPage() {
     }
 
     const pseudoEmail = `${cleanPhone}@prodance.app`
-    console.log('Trying to auth with:', pseudoEmail)
 
     setLoading(true)
 
@@ -100,7 +87,7 @@ export default function LoginPage() {
         throw signInError
       }
 
-      router.push('/market')
+      router.push('/')
       router.refresh()
     } catch (caughtError) {
       const message =

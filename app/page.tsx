@@ -1,43 +1,18 @@
-const categories = ['Все', 'Тренировочное', 'Турнирное', 'Обувь']
+import Link from 'next/link'
+import { PackageOpen } from 'lucide-react'
 
-const demoProducts = [
-  {
-    id: '1',
-    title: 'Платье для стандарта с мягким сиянием',
-    price: 24800,
-    details: 'Размер 42 • Состояние: Отличное',
-  },
-  {
-    id: '2',
-    title: 'Латинский комплект для тренировок графитового оттенка',
-    price: 6900,
-    details: 'Размер 40 • Состояние: Новое',
-  },
-  {
-    id: '3',
-    title: 'Туфли для паркета с устойчивым каблуком',
-    price: 11200,
-    details: 'Размер 37 • Состояние: Отличное',
-  },
-  {
-    id: '4',
-    title: 'Турнирное платье с открытой линией спины',
-    price: 31900,
-    details: 'Размер 44 • Состояние: Отличное',
-  },
-  {
-    id: '5',
-    title: 'Боди и юбка для ежедневных тренировок',
-    price: 5400,
-    details: 'Размер 38 • Состояние: Хорошее',
-  },
-  {
-    id: '6',
-    title: 'Мужская рубашка для рейтинга и турниров',
-    price: 8700,
-    details: 'Размер 48 • Состояние: Отличное',
-  },
-] as const
+import { createSupabaseServerClient } from './lib/supabase-server'
+
+type Item = {
+  id: string
+  title: string
+  price: number
+  image_url: string | null
+  size: string | null
+  gender: string | null
+  category: string | null
+  description: string | null
+}
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat('ru-RU').format(price)
@@ -55,85 +30,107 @@ function ProductPlaceholder() {
   )
 }
 
-function ProductCard({
-  product,
-  accent,
-}: {
-  product: (typeof demoProducts)[number]
-  accent: string
-}) {
-  return (
-    <article className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
-      <div className={accent}>
-        <ProductPlaceholder />
-      </div>
+function ProductCard({ item }: { item: Item }) {
+  const meta = [item.size, item.gender, item.category].filter(Boolean).join(' • ')
 
-      <div className="flex min-h-[120px] flex-col px-3 pb-3 pt-2">
-        <p className="mt-2 text-lg font-bold text-gray-900">
-          {formatPrice(product.price)} ₽
-        </p>
-        <h2 className="mt-1 line-clamp-2 text-sm leading-5 text-gray-700">
-          {product.title}
+  return (
+    <article className="overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
+      {item.image_url ? (
+        <img
+          src={item.image_url}
+          alt={item.title}
+          className="aspect-[3/4] w-full bg-slate-100 object-cover"
+        />
+      ) : (
+        <ProductPlaceholder />
+      )}
+
+      <div className="flex min-h-[148px] flex-col px-3 pb-4 pt-3 sm:px-4">
+        {item.category ? (
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-slate-400">
+            {item.category}
+          </p>
+        ) : null}
+        <p className="text-lg font-bold text-gray-900">{formatPrice(item.price)} ₽</p>
+        <h2 className="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-gray-800 sm:text-base">
+          {item.title}
         </h2>
-        <p className="mt-auto pt-3 text-xs text-gray-400">{product.details}</p>
+        {item.description ? (
+          <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
+            {item.description}
+          </p>
+        ) : null}
+        <p className="mt-auto pt-3 text-xs text-gray-400">
+          {meta || 'Размер и параметры появятся позже'}
+        </p>
       </div>
     </article>
   )
 }
 
-export default function HomePage() {
-  const accents = [
-    'bg-[#f3f4f6]',
-    'bg-[#f5efe8]',
-    'bg-[#eef2f7]',
-    'bg-[#f5f0f3]',
-    'bg-[#f1f5f9]',
-    'bg-[#f7f3ed]',
-  ]
+export default async function HomePage() {
+  const supabase = await createSupabaseServerClient()
+  const { data, error } = await (supabase.from('items') as any)
+    .select('*')
+    .order('created_at', { ascending: false })
+  const items = (data ?? []) as Item[]
 
   return (
-    <main className="min-h-screen bg-[#fafafa] text-gray-900">
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur">
-        <div className="px-4 pb-4 pt-4">
-          <div>
-            <p className="text-xl font-semibold tracking-tight text-gray-950">
-              ProDance
-            </p>
-          </div>
+    <main className="min-h-screen bg-[#f6f3ee] pb-24 text-slate-950 md:pb-0">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col">
+        <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-[#f6f3ee]/95 backdrop-blur">
+          <div className="px-4 py-4 sm:px-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xl font-semibold tracking-tight text-slate-950">
+                  ProDance
+                </p>
+              </div>
 
-          <div className="no-scrollbar mt-4 overflow-x-auto">
-            <div className="flex min-w-max gap-2">
-              {categories.map((category, index) => {
-                const isActive = index === 0
-
-                return (
-                  <button
-                    key={category}
-                    type="button"
-                    className={`rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition ${
-                      isActive
-                        ? 'bg-gray-950 text-white'
-                        : 'border border-gray-200 bg-white text-gray-600'
-                    }`}
-                  >
-                    {category}
-                  </button>
-                )
-              })}
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/profile"
+                  className="inline-flex h-10 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-fuchsia-200 hover:text-fuchsia-700"
+                >
+                  Профиль
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <section className="grid grid-cols-2 gap-3 px-4 pb-24 pt-4">
-        {demoProducts.map((product, index) => (
-          <ProductCard
-            key={product.id}
-            product={product}
-            accent={accents[index % accents.length]}
-          />
-        ))}
-      </section>
+        <section className="flex flex-1 flex-col px-4 py-4 sm:px-6 sm:py-6">
+          {error ? (
+            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Не удалось загрузить каталог: {error.message}
+            </div>
+          ) : null}
+
+          {!items.length ? (
+            <section className="flex flex-1 items-center justify-center">
+              <div className="w-full text-center">
+                <PackageOpen className="mx-auto mb-4 h-16 w-16 stroke-[1.5] text-slate-300" />
+                <h1 className="text-xl font-bold text-slate-900">Здесь пока пусто</h1>
+                <p className="mx-auto mt-2 max-w-[250px] text-sm leading-relaxed text-slate-500">
+                  Станьте первым, кто выложит вещь на продажу.
+                </p>
+                <Link
+                  href="/create"
+                  className="mx-auto mt-8 inline-flex h-14 w-full max-w-[280px] items-center justify-center rounded-2xl bg-slate-950 text-base font-semibold text-white shadow-lg transition hover:bg-slate-800"
+                >
+                  Разместить объявление
+                </Link>
+              </div>
+            </section>
+          ) : (
+            <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+              {items.map((item) => (
+                <ProductCard key={item.id} item={item} />
+              ))}
+            </section>
+          )}
+        </section>
+      </div>
     </main>
   )
 }
