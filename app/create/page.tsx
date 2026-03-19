@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Camera } from 'lucide-react'
-import { useState, type ChangeEvent, type FormEvent } from 'react'
+import Image from 'next/image'
+import { ArrowLeft, Camera, Star } from 'lucide-react'
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 
 import { supabase } from '../lib/supabase'
 
@@ -14,10 +15,25 @@ export default function CreatePage() {
   const router = useRouter()
   const [category, setCategory] = useState<(typeof categories)[number]>('Турнирное')
   const [gender, setGender] = useState<(typeof genders)[number]>('Женское')
-  const [photoName, setPhotoName] = useState('')
-  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoFiles, setPhotoFiles] = useState<File[]>([])
+  const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([])
+  const [mainPhotoIndex, setMainPhotoIndex] = useState(0)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!photoFiles.length) {
+      setPhotoPreviewUrls([])
+      return
+    }
+
+    const nextPreviewUrls = photoFiles.map((file) => URL.createObjectURL(file))
+    setPhotoPreviewUrls(nextPreviewUrls)
+
+    return () => {
+      nextPreviewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl))
+    }
+  }, [photoFiles])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -34,7 +50,7 @@ export default function CreatePage() {
       return
     }
 
-    if (!photoFile) {
+    if (!photoFiles.length) {
       setError('Добавьте фото товара')
       return
     }
@@ -54,11 +70,12 @@ export default function CreatePage() {
     setIsSubmitting(true)
 
     try {
-      const fileName = `${Date.now()}-${photoFile.name.replace(/\s+/g, '-')}`
+      const mainPhoto = photoFiles[mainPhotoIndex] ?? photoFiles[0]
+      const fileName = `${Date.now()}-${mainPhoto.name.replace(/\s+/g, '-')}`
 
       const { error: uploadError } = await supabase.storage
         .from('marketplace-images')
-        .upload(fileName, photoFile, {
+        .upload(fileName, mainPhoto, {
           cacheControl: '3600',
           upsert: false,
         })
@@ -97,11 +114,30 @@ export default function CreatePage() {
   }
 
   const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] ?? null
+    const nextFiles = Array.from(event.target.files ?? [])
 
-    setPhotoFile(file)
-    setPhotoName(file?.name ?? '')
+    if (!nextFiles.length) {
+      return
+    }
+
+    setPhotoFiles((currentFiles) => {
+      const existingFileKeys = new Set(
+        currentFiles.map((file) => `${file.name}-${file.size}-${file.lastModified}`)
+      )
+      const uniqueNextFiles = nextFiles.filter((file) => {
+        const fileKey = `${file.name}-${file.size}-${file.lastModified}`
+        return !existingFileKeys.has(fileKey)
+      })
+
+      if (!currentFiles.length && uniqueNextFiles.length) {
+        setMainPhotoIndex(0)
+      }
+
+      return uniqueNextFiles.length ? [...currentFiles, ...uniqueNextFiles] : currentFiles
+    })
+
     setError('')
+    event.target.value = ''
   }
 
   return (
@@ -126,23 +162,86 @@ export default function CreatePage() {
       <form
         id="create-listing-form"
         onSubmit={handleSubmit}
-        className="space-y-5 px-4 py-5 pb-32"
+        className="space-y-5 px-4 py-5 pb-48"
       >
         <label className="block">
           <span className="mb-3 block text-sm font-medium text-slate-600">Фото</span>
-          <div className="flex min-h-64 flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-slate-300 bg-white px-6 py-10 text-center shadow-sm">
+          <div className="relative flex min-h-64 flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-slate-300 bg-white px-6 py-10 text-center shadow-sm">
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="absolute inset-0 cursor-pointer opacity-0"
+              onChange={handlePhotoChange}
+            />
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-950 text-white shadow-lg shadow-slate-950/15">
               <Camera className="h-7 w-7" />
             </div>
             <p className="mt-4 text-lg font-semibold text-slate-950">Добавить фото</p>
             <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500">
-              Загрузите главное фото товара, чтобы объявление выглядело аккуратно.
+              {photoFiles.length
+                ? 'Можно выбрать еще фото. Главное фото отметьте звездой в превью ниже.'
+                : 'Выберите одно или несколько фото товара. Главное фото можно отметить после загрузки.'}
             </p>
-            <span className="mt-5 inline-flex rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600">
-              {photoName || 'Выбрать изображение'}
-            </span>
+            {!photoFiles.length ? (
+              <span className="mt-5 inline-flex rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600">
+                Выбрать изображения
+              </span>
+            ) : null}
           </div>
-          <input type="file" accept="image/*" className="sr-only" onChange={handlePhotoChange} />
+
+          {photoFiles.length ? (
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {photoPreviewUrls.map((previewUrl, index) => {
+                const isMainPhoto = index === mainPhotoIndex
+
+                return (
+                  <div
+                    key={`${photoFiles[index]?.name ?? 'photo'}-${index}`}
+                    className={`relative overflow-hidden rounded-xl border bg-slate-100 ${
+                      isMainPhoto ? 'border-4 border-blue-600' : 'border-slate-200'
+                    }`}
+                  >
+                    {isMainPhoto ? (
+                      <span className="absolute left-2 top-2 z-10 rounded-full bg-blue-600 px-2 py-1 text-xs font-semibold text-white">
+                        Главное
+                      </span>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => setMainPhotoIndex(index)}
+                      className={`absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition ${
+                        isMainPhoto
+                          ? 'border-blue-600 bg-blue-600 text-white'
+                          : 'border-white/80 bg-white/90 text-slate-600'
+                      }`}
+                      aria-label={
+                        isMainPhoto
+                          ? 'Это главное фото'
+                          : `Сделать главным фото ${photoFiles[index]?.name ?? ''}`
+                      }
+                    >
+                      <Star className={`h-4 w-4 ${isMainPhoto ? 'fill-current' : ''}`} />
+                    </button>
+
+                    <div className="relative aspect-square">
+                      <Image
+                        src={previewUrl}
+                        alt={photoFiles[index]?.name ?? `Фото ${index + 1}`}
+                        fill
+                        unoptimized
+                        className="object-cover"
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : null}
+
+          <input type="hidden" name="mainPhotoIndex" value={mainPhotoIndex} />
+          <input type="hidden" name="mainPhotoName" value={photoFiles[mainPhotoIndex]?.name ?? ''} />
         </label>
 
         <section className="space-y-4 rounded-[2rem] bg-white p-4 shadow-sm">
