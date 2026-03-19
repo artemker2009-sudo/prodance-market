@@ -1,10 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { getSafeRedirectPath, isAuthPage, isProtectedPath } from './app/lib/auth-routing'
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const publicRoutes = new Set(['/', '/market', '/login', '/register'])
-const protectedRoutePrefixes = ['/profile', '/messages', '/create', '/market/create']
 
 if (!supabaseUrl) {
   throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set')
@@ -17,25 +17,20 @@ if (!supabaseAnonKey) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  if (publicRoutes.has(pathname)) {
-    return NextResponse.next({
-      request,
-    })
-  }
-
-  const isProtectedRoute = protectedRoutePrefixes.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
-  )
-
-  if (!isProtectedRoute) {
-    return NextResponse.next({
-      request,
-    })
-  }
-
   let response = NextResponse.next({
     request,
   })
+  let responseCookies: Array<{
+    name: string
+    value: string
+    options?: Parameters<typeof response.cookies.set>[2]
+  }> = []
+
+  const applyResponseCookies = (target: NextResponse) => {
+    responseCookies.forEach(({ name, value, options }) => {
+      target.cookies.set(name, value, options)
+    })
+  }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -48,6 +43,7 @@ export async function middleware(request: NextRequest) {
         response = NextResponse.next({
           request,
         })
+        responseCookies = cookiesToSet
 
         cookiesToSet.forEach(({ name, value, options }) => {
           response.cookies.set(name, value, options)
@@ -60,10 +56,22 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) {
+  if (!user && isProtectedPath(pathname)) {
     const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
-    return NextResponse.redirect(loginUrl)
+    loginUrl.searchParams.set(
+      'redirectTo',
+      getSafeRedirectPath(`${request.nextUrl.pathname}${request.nextUrl.search}`)
+    )
+
+    const redirectResponse = NextResponse.redirect(loginUrl)
+    applyResponseCookies(redirectResponse)
+    return redirectResponse
+  }
+
+  if (user && isAuthPage(pathname)) {
+    const redirectResponse = NextResponse.redirect(new URL('/', request.url))
+    applyResponseCookies(redirectResponse)
+    return redirectResponse
   }
 
   return response

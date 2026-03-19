@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   ArrowRight,
@@ -16,7 +16,8 @@ import {
   X,
 } from 'lucide-react'
 
-import { supabase } from '../lib/supabase'
+import { getSafeRedirectPath } from '../lib/auth-routing'
+import { supabase, waitForSupabaseSession } from '../lib/supabase'
 
 const russianCities = [
   'Москва',
@@ -118,7 +119,7 @@ function formatPhoneInput(value: string) {
 }
 
 export default function RegisterPage() {
-  const router = useRouter()
+  const searchParams = useSearchParams()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -130,6 +131,10 @@ export default function RegisterPage() {
   const [isCitySheetOpen, setIsCitySheetOpen] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const redirectTo = useMemo(
+    () => getSafeRedirectPath(searchParams.get('redirectTo')),
+    [searchParams]
+  )
 
   useEffect(() => {
     if (!isCitySheetOpen) {
@@ -198,8 +203,8 @@ export default function RegisterPage() {
         throw signUpError
       }
 
-      router.push('/')
-      router.refresh()
+      await waitForSupabaseSession('signed-in')
+      window.location.assign(redirectTo)
     } catch (caughtError) {
       const message =
         caughtError instanceof Error ? caughtError.message : String(caughtError)
@@ -218,45 +223,44 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-8 pb-28 md:pb-8">
-      <section className="w-full max-w-md rounded-[2rem] border border-white/70 bg-white/90 p-6 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.35)] backdrop-blur sm:p-8">
+    <main className="flex min-h-screen items-center justify-center bg-[#faf7f3] px-4 py-8 pb-28 md:pb-8">
+      <section className="w-full max-w-md rounded-[2rem] border border-slate-200/70 bg-white p-6 shadow-sm sm:p-8">
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-3">
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-950 text-white">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white">
               <UserRound className="h-5 w-5" />
             </div>
             <div className="space-y-2">
-              <h1 className="text-3xl font-semibold tracking-tight text-neutral-950">
-                Регистрация
-              </h1>
-              <p className="text-sm leading-6 text-neutral-500">
-                Создайте аккаунт по номеру телефона и выберите свой город.
+              <p className="text-sm font-medium tracking-[0.18em] text-slate-500 uppercase">
+                New account
+              </p>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-950">Регистрация</h1>
+              <p className="text-sm leading-6 text-slate-500">
+                Создайте аккаунт по номеру телефона и выберите город.
               </p>
             </div>
           </div>
 
           <label className="block space-y-2">
-            <span className="text-sm font-medium text-neutral-700">Имя</span>
-            <div className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 focus-within:border-neutral-950 focus-within:bg-white">
-              <UserRound className="h-5 w-5 text-neutral-400" />
+            <span className="text-sm font-medium text-slate-700">Имя</span>
+            <div className="flex items-center gap-3 rounded-[1.5rem] border border-slate-200/70 bg-[#faf7f3] px-4 py-4 focus-within:border-slate-950 focus-within:bg-white">
+              <UserRound className="h-5 w-5 text-slate-400" />
               <input
                 type="text"
                 autoComplete="name"
                 placeholder="Как к вам обращаться"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                className="w-full bg-transparent text-base outline-none placeholder:text-neutral-400"
+                className="w-full bg-transparent text-base outline-none placeholder:text-slate-400"
                 required
               />
             </div>
           </label>
 
           <label className="block space-y-2">
-            <span className="text-sm font-medium text-neutral-700">
-              Номер телефона
-            </span>
-            <div className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 focus-within:border-neutral-950 focus-within:bg-white">
-              <Phone className="h-5 w-5 text-neutral-400" />
+            <span className="text-sm font-medium text-slate-700">Номер телефона</span>
+            <div className="flex items-center gap-3 rounded-[1.5rem] border border-slate-200/70 bg-[#faf7f3] px-4 py-4 focus-within:border-slate-950 focus-within:bg-white">
+              <Phone className="h-5 w-5 text-slate-400" />
               <input
                 type="tel"
                 inputMode="tel"
@@ -264,23 +268,23 @@ export default function RegisterPage() {
                 placeholder="+7 (999) 123-45-67"
                 value={phone}
                 onChange={(event) => setPhone(formatPhoneInput(event.target.value))}
-                className="w-full bg-transparent text-base outline-none placeholder:text-neutral-400"
+                className="w-full bg-transparent text-base outline-none placeholder:text-slate-400"
                 required
               />
             </div>
           </label>
 
           <label className="block space-y-2">
-            <span className="text-sm font-medium text-neutral-700">Пароль</span>
-            <div className="relative rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 focus-within:border-neutral-950 focus-within:bg-white">
-              <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
+            <span className="text-sm font-medium text-slate-700">Пароль</span>
+            <div className="relative rounded-[1.5rem] border border-slate-200/70 bg-[#faf7f3] px-4 py-4 focus-within:border-slate-950 focus-within:bg-white">
+              <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
                 placeholder="Придумайте пароль"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="w-full bg-transparent pl-8 pr-10 text-base outline-none placeholder:text-neutral-400"
+                className="w-full bg-transparent pl-8 pr-10 text-base outline-none placeholder:text-slate-400"
                 required
               />
               <button
@@ -299,18 +303,16 @@ export default function RegisterPage() {
           </label>
 
           <label className="block space-y-2">
-            <span className="text-sm font-medium text-neutral-700">
-              Повторите пароль
-            </span>
-            <div className="relative rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 focus-within:border-neutral-950 focus-within:bg-white">
-              <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
+            <span className="text-sm font-medium text-slate-700">Повторите пароль</span>
+            <div className="relative rounded-[1.5rem] border border-slate-200/70 bg-[#faf7f3] px-4 py-4 focus-within:border-slate-950 focus-within:bg-white">
+              <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
                 type={showConfirmPassword ? 'text' : 'password'}
                 autoComplete="new-password"
                 placeholder="Повторите пароль"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
-                className="w-full bg-transparent pl-8 pr-10 text-base outline-none placeholder:text-neutral-400"
+                className="w-full bg-transparent pl-8 pr-10 text-base outline-none placeholder:text-slate-400"
                 required
               />
               <button
@@ -331,21 +333,21 @@ export default function RegisterPage() {
           </label>
 
           <div className="space-y-2">
-            <span className="text-sm font-medium text-neutral-700">Город</span>
+            <span className="text-sm font-medium text-slate-700">Город</span>
             <button
               type="button"
               onClick={() => setIsCitySheetOpen(true)}
-              className="flex w-full items-center gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 text-left"
+              className="flex w-full items-center gap-3 rounded-[1.5rem] border border-slate-200/70 bg-[#faf7f3] px-4 py-4 text-left"
             >
-              <MapPin className="h-5 w-5 text-neutral-400" />
+              <MapPin className="h-5 w-5 text-slate-400" />
               <span
                 className={`min-w-0 flex-1 text-base ${
-                  city ? 'text-neutral-950' : 'text-neutral-400'
+                  city ? 'text-slate-950' : 'text-slate-400'
                 }`}
               >
                 {city || 'Выберите город'}
               </span>
-              <ChevronDown className="h-5 w-5 text-neutral-400" />
+              <ChevronDown className="h-5 w-5 text-slate-400" />
             </button>
           </div>
 
@@ -358,15 +360,15 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-neutral-950 px-5 text-base font-semibold text-white shadow-[0_18px_40px_-24px_rgba(15,23,42,0.75)] disabled:opacity-60"
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-[1.5rem] bg-slate-950 px-5 text-base font-semibold text-white shadow-sm disabled:opacity-60"
           >
             <span>{loading ? 'Создаем аккаунт...' : 'Зарегистрироваться'}</span>
             {!loading ? <ArrowRight className="h-5 w-5" /> : null}
           </button>
 
-          <p className="text-center text-sm text-neutral-500">
+          <p className="text-center text-sm text-slate-500">
             Уже есть аккаунт?{' '}
-            <Link href="/login" className="font-semibold text-neutral-950">
+            <Link href="/login" className="font-semibold text-slate-950">
               Войти
             </Link>
           </p>
@@ -377,35 +379,35 @@ export default function RegisterPage() {
         <div className="fixed inset-0 z-[60] flex items-end bg-black/40 px-0 md:items-center md:justify-center md:px-4">
           <div className="flex h-[88vh] w-full flex-col rounded-t-[2rem] bg-white shadow-2xl md:h-[min(42rem,88vh)] md:max-w-md md:rounded-[2rem]">
             <div className="px-4 pb-4 pt-3 md:px-6">
-              <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-neutral-200 md:hidden" />
+              <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200 md:hidden" />
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-semibold text-neutral-950">
+                  <h2 className="text-xl font-semibold text-slate-950">
                     Выберите город
                   </h2>
-                  <p className="mt-1 text-sm text-neutral-500">
+                  <p className="mt-1 text-sm text-slate-500">
                     Найдите свой город в списке крупных городов России.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsCitySheetOpen(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-500"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500"
                   aria-label="Закрыть выбор города"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              <div className="mt-4 flex items-center gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 focus-within:border-neutral-950 focus-within:bg-white">
-                <Search className="h-5 w-5 text-neutral-400" />
+              <div className="mt-4 flex items-center gap-3 rounded-[1.5rem] border border-slate-200/70 bg-[#faf7f3] px-4 py-4 focus-within:border-slate-950 focus-within:bg-white">
+                <Search className="h-5 w-5 text-slate-400" />
                 <input
                   type="text"
                   autoFocus
                   placeholder="Начните вводить город"
                   value={citySearch}
                   onChange={(event) => setCitySearch(event.target.value)}
-                  className="w-full bg-transparent text-base outline-none placeholder:text-neutral-400"
+                  className="w-full bg-transparent text-base outline-none placeholder:text-slate-400"
                 />
               </div>
             </div>
@@ -423,10 +425,10 @@ export default function RegisterPage() {
                         setIsCitySheetOpen(false)
                         setError('')
                       }}
-                      className={`flex w-full items-center justify-between rounded-2xl px-4 py-4 text-left text-base ${
+                      className={`flex w-full items-center justify-between rounded-[1.5rem] px-4 py-4 text-left text-base ${
                         city === item
-                          ? 'bg-neutral-950 text-white'
-                          : 'bg-neutral-50 text-neutral-900'
+                          ? 'bg-slate-950 text-white'
+                          : 'bg-[#faf7f3] text-slate-900'
                       }`}
                     >
                       <span>{item}</span>
@@ -437,7 +439,7 @@ export default function RegisterPage() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-3xl bg-neutral-50 px-5 py-6 text-sm text-neutral-500">
+                <div className="rounded-[2rem] bg-[#faf7f3] px-5 py-6 text-sm text-slate-500">
                   По вашему запросу города не найдены.
                 </div>
               )}

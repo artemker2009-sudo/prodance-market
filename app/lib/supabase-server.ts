@@ -23,13 +23,13 @@ export async function createSupabaseServerClient() {
         return cookieStore.getAll()
       },
       setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) => {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          try {
             cookieStore.set(name, value, options)
-          })
-        } catch {
-          // Server Components can read cookies, but cannot always persist them.
-        }
+          } catch {
+            // Server Components can read cookies, but cannot always persist them.
+          }
+        })
       },
     },
   })

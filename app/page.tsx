@@ -125,7 +125,13 @@ export default async function HomePage() {
           ) : (
             <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
               {items.map((item) => (
-                <ProductCard key={item.id} item={item} />
+                <Link
+                  key={item.id}
+                  href={`/item/${item.id}`}
+                  className="block rounded-[1.5rem] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15 focus-visible:ring-offset-2"
+                >
+                  <ProductCard item={item} />
+                </Link>
               ))}
             </section>
           )}

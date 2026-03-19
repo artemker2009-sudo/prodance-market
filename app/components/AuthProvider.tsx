@@ -35,8 +35,13 @@ async function getProfile(userId: string) {
   return data
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null)
+type AuthProviderProps = {
+  children: ReactNode
+  initialSession: Session | null
+}
+
+export function AuthProvider({ children, initialSession }: AuthProviderProps) {
+  const [session, setSession] = useState<Session | null>(initialSession)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -44,6 +49,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true
 
     const syncAuth = async (nextSession: Session | null) => {
+      if (!active) {
+        return
+      }
+
       setSession(nextSession)
 
       if (!nextSession?.user) {
@@ -72,12 +81,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    void supabase.auth.getSession().then(({ data }) => syncAuth(data.session))
+    const bootstrapAuth = async () => {
+      setLoading(true)
+
+      await syncAuth(initialSession)
+
+      const { data } = await supabase.auth.getSession()
+
+      if (!active) {
+        return
+      }
+
+      if (data.session?.access_token !== initialSession?.access_token) {
+        await syncAuth(data.session)
+        return
+      }
+
+      if (active) {
+        setLoading(false)
+      }
+    }
+
+    void bootstrapAuth()
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setLoading(true)
+      if (active) {
+        setLoading(true)
+      }
+
       void syncAuth(nextSession)
     })
 
@@ -85,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false
       subscription.unsubscribe()
     }
-  }, [])
+  }, [initialSession])
 
   const value = useMemo(
     () => ({ session, profile, loading }),
