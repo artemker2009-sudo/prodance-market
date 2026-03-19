@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Camera, Star } from 'lucide-react'
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import { ArrowLeft, Plus } from 'lucide-react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 
 import { supabase } from '../lib/supabase'
 
@@ -16,15 +16,19 @@ export default function CreatePage() {
   const [gender, setGender] = useState<(typeof genders)[number]>('Женское')
   const [photoFiles, setPhotoFiles] = useState<File[]>([])
   const [previewUrls, setPreviewUrls] = useState<string[]>([])
-  const [mainPhotoIndex, setMainPhotoIndex] = useState(0)
+  const previewUrlsRef = useRef<string[]>([])
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
-    return () => {
-      previewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl))
-    }
+    previewUrlsRef.current = previewUrls
   }, [previewUrls])
+
+  useEffect(() => {
+    return () => {
+      previewUrlsRef.current.forEach((previewUrl) => URL.revokeObjectURL(previewUrl))
+    }
+  }, [])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -61,7 +65,7 @@ export default function CreatePage() {
     setIsSubmitting(true)
 
     try {
-      const mainPhoto = photoFiles[mainPhotoIndex] ?? photoFiles[0]
+      const mainPhoto = photoFiles[0]
       const fileName = `${Date.now()}-${mainPhoto.name.replace(/\s+/g, '-')}`
 
       const { error: uploadError } = await supabase.storage
@@ -111,10 +115,10 @@ export default function CreatePage() {
       return
     }
 
-    previewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl))
-    setPhotoFiles(nextFiles)
-    setPreviewUrls(nextFiles.map((file) => URL.createObjectURL(file)))
-    setMainPhotoIndex(0)
+    const nextPreviewUrls = nextFiles.map((file) => URL.createObjectURL(file))
+
+    setPhotoFiles((prev) => [...prev, ...nextFiles])
+    setPreviewUrls((prev) => [...prev, ...nextPreviewUrls])
     setError('')
     event.target.value = ''
   }
@@ -154,69 +158,31 @@ export default function CreatePage() {
               onChange={handlePhotoChange}
             />
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-950 text-white shadow-lg shadow-slate-950/15">
-              <Camera className="h-7 w-7" />
+              <Plus className="h-7 w-7" />
             </div>
             <p className="mt-4 text-lg font-semibold text-slate-950">Добавить фото</p>
             <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500">
               {photoFiles.length
-                ? 'Можно выбрать еще фото. Главное фото отметьте звездой в превью ниже.'
-                : 'Выберите одно или несколько фото товара. Главное фото можно отметить после загрузки.'}
+                ? 'Нажмите еще раз, чтобы добавить дополнительные фото к уже выбранным.'
+                : 'Выберите одно или несколько фото товара.'}
             </p>
-            {!photoFiles.length ? (
-              <span className="mt-5 inline-flex rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600">
-                Выбрать изображения
-              </span>
-            ) : null}
+            <span className="mt-5 inline-flex rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600">
+              Выбрать изображения
+            </span>
           </div>
 
           {previewUrls.length > 0 ? (
             <div className="mt-4 grid grid-cols-3 gap-3">
-              {previewUrls.map((previewUrl, index) => {
-                const isMainPhoto = index === mainPhotoIndex
-
-                return (
-                  <div
-                    key={`${photoFiles[index]?.name ?? 'photo'}-${index}`}
-                    className={`relative overflow-hidden rounded-xl border bg-slate-100 ${
-                      isMainPhoto ? 'border-4 border-blue-600' : 'border-slate-200'
-                    }`}
-                  >
-                    {isMainPhoto ? (
-                      <span className="absolute left-2 top-2 z-10 rounded-full bg-blue-600 px-2 py-1 text-xs font-semibold text-white">
-                        Главное
-                      </span>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      onClick={() => setMainPhotoIndex(index)}
-                      className={`absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition ${
-                        isMainPhoto
-                          ? 'border-blue-600 bg-blue-600 text-white'
-                          : 'border-white/80 bg-white/90 text-slate-600'
-                      }`}
-                      aria-label={
-                        isMainPhoto
-                          ? 'Это главное фото'
-                          : `Сделать главным фото ${photoFiles[index]?.name ?? ''}`
-                      }
-                    >
-                      <Star className={`h-4 w-4 ${isMainPhoto ? 'fill-current' : ''}`} />
-                    </button>
-
-                    <img
-                      src={previewUrl}
-                      alt={photoFiles[index]?.name ?? `Фото ${index + 1}`}
-                      className="w-full aspect-square object-cover rounded-xl shadow-sm"
-                    />
-                  </div>
-                )
-              })}
+              {previewUrls.map((previewUrl, index) => (
+                <img
+                  key={`${photoFiles[index]?.name ?? 'photo'}-${index}`}
+                  src={previewUrl}
+                  alt={photoFiles[index]?.name ?? `Фото ${index + 1}`}
+                  className="w-full aspect-square object-cover rounded-xl shadow-sm"
+                />
+              ))}
             </div>
           ) : null}
-
-          <input type="hidden" name="mainPhotoIndex" value={mainPhotoIndex} />
-          <input type="hidden" name="mainPhotoName" value={photoFiles[mainPhotoIndex]?.name ?? ''} />
         </label>
 
         <section className="space-y-4 rounded-[2rem] bg-white p-4 shadow-sm">
