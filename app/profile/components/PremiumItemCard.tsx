@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { Heart } from 'lucide-react'
 
 type PremiumItem = {
   id: string
@@ -37,8 +38,17 @@ export function PremiumItemCard({
   topRight?: ReactNode
 }) {
   const previewImage = item.image_urls?.[0] ?? null
+  const favoriteControl = topRight ?? (
+    <button
+      type="button"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow-sm"
+      aria-label="Добавить в избранное"
+    >
+      <Heart className="h-4 w-4" />
+    </button>
+  )
   const content = (
-    <article className="h-full overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
+    <article className="flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
       <div className="relative">
         {previewImage ? (
           <div className="relative aspect-[3/4] w-full bg-slate-100">
@@ -54,10 +64,10 @@ export function PremiumItemCard({
         ) : (
           <ProductPlaceholder />
         )}
-        {topRight ? <div className="absolute right-2 top-2 z-10">{topRight}</div> : null}
+        <div className="absolute right-2 top-2 z-10">{favoriteControl}</div>
       </div>
 
-      <div className="px-3 pb-4 pt-3 sm:px-4">
+      <div className="flex min-h-[74px] flex-col px-3 pb-4 pt-3 sm:px-4">
         <p className="text-xl font-bold tracking-tight text-gray-900">{formatPrice(item.price)} ₽</p>
         <h2 className="mt-1 truncate text-sm font-semibold leading-5 text-gray-800 sm:text-base">
           {item.title}

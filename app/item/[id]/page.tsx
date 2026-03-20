@@ -80,9 +80,12 @@ export default async function ItemPage({ params }: ItemPageProps) {
         </header>
 
         {gallery.length ? (
-          <div className="flex snap-x snap-mandatory overflow-x-auto">
+          <div className="flex overflow-x-auto snap-x">
             {gallery.map((imageUrl, index) => (
-              <div key={`${item.id}-${index}`} className="relative aspect-[3/4] w-full shrink-0 snap-center">
+              <div
+                key={`${item.id}-${index}`}
+                className="relative aspect-[3/4] min-w-full snap-center"
+              >
                 <Image
                   src={imageUrl}
                   alt={`${item.title} — фото ${index + 1}`}

@@ -94,13 +94,6 @@ export default function CreatePage() {
         uploadedUrls.push(publicUrl)
       }
 
-      const normalizedMainIndex =
-        mainPhotoIndex >= 0 && mainPhotoIndex < uploadedUrls.length ? mainPhotoIndex : 0
-      const orderedImageUrls = [
-        uploadedUrls[normalizedMainIndex],
-        ...uploadedUrls.filter((_, index) => index !== normalizedMainIndex),
-      ].filter(Boolean)
-
       const { error: insertError } = await (supabase.from('items') as any).insert({
         title,
         category,
@@ -108,7 +101,7 @@ export default function CreatePage() {
         size,
         price,
         description: description || null,
-        image_urls: orderedImageUrls,
+        image_urls: uploadedUrls,
         seller_id: user.id,
       })
 

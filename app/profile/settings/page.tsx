@@ -92,11 +92,12 @@ export default function ProfileSettingsPage() {
         setAvatarPreviewUrl(publicUrl)
         setSuccess('Аватар обновлен')
       } catch (uploadAvatarError) {
+        const message =
+          uploadAvatarError instanceof Error ? uploadAvatarError.message : 'Не удалось обновить аватар'
         setError(
-          uploadAvatarError instanceof Error
-            ? uploadAvatarError.message
-            : 'Не удалось обновить аватар'
+          message
         )
+        window.alert(message)
       } finally {
         setIsUploadingAvatar(false)
       }
