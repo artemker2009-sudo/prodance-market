@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -34,7 +35,7 @@ const tabs = [
 ] as const
 
 const menuItems = [
-  { key: 'settings', label: 'Настройки', icon: Settings2 },
+  { key: 'settings', label: 'Настройки аккаунта', icon: Settings2 },
   { key: 'support', label: 'Поддержка', icon: Headphones },
   { key: 'notifications', label: 'Уведомления', icon: Bell },
 ] as const
@@ -240,7 +241,6 @@ export default function ProfilePage() {
       setToastMessage('Уведомления в разработке')
       return
     }
-    setToastMessage('Настройки в разработке')
   }
 
   const handleSignOut = async () => {
@@ -363,21 +363,35 @@ export default function ProfilePage() {
           <ul className="divide-y divide-slate-200/70">
             {menuItems.map((item) => {
               const Icon = item.icon
+              const content = (
+                <>
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#faf7f3] text-slate-700">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <span className="min-w-0 flex-1 text-[15px] font-medium text-slate-950">
+                    {item.label}
+                  </span>
+                  <Sparkles className="h-4 w-4 text-slate-300" />
+                </>
+              )
               return (
                 <li key={item.key}>
-                  <button
-                    type="button"
-                    onClick={() => handleMenuClick(item)}
-                    className="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-slate-50"
-                  >
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#faf7f3] text-slate-700">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <span className="min-w-0 flex-1 text-[15px] font-medium text-slate-950">
-                      {item.label}
-                    </span>
-                    <Sparkles className="h-4 w-4 text-slate-300" />
-                  </button>
+                  {item.key === 'settings' ? (
+                    <Link
+                      href="/profile/settings"
+                      className="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-slate-50"
+                    >
+                      {content}
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleMenuClick(item)}
+                      className="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-slate-50"
+                    >
+                      {content}
+                    </button>
+                  )}
                 </li>
               )
             })}

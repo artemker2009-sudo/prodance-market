@@ -9,10 +9,6 @@ type PremiumItem = {
   title: string
   price: number
   image_urls: string[] | null
-  size: string | null
-  gender: string | null
-  category: string | null
-  description: string | null
 }
 
 function formatPrice(price: number) {
@@ -40,10 +36,9 @@ export function PremiumItemCard({
   href?: string
   topRight?: ReactNode
 }) {
-  const meta = [item.size, item.gender, item.category].filter(Boolean).join(' • ')
   const previewImage = item.image_urls?.[0] ?? null
   const content = (
-    <article className="overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
+    <article className="h-full overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
       <div className="relative">
         {previewImage ? (
           <div className="relative aspect-[3/4] w-full bg-slate-100">
@@ -62,24 +57,11 @@ export function PremiumItemCard({
         {topRight ? <div className="absolute right-2 top-2 z-10">{topRight}</div> : null}
       </div>
 
-      <div className="flex min-h-[148px] flex-col px-3 pb-4 pt-3 sm:px-4">
-        {item.category ? (
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-slate-400">
-            {item.category}
-          </p>
-        ) : null}
-        <p className="text-lg font-bold text-gray-900">{formatPrice(item.price)} ₽</p>
-        <h2 className="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-gray-800 sm:text-base">
+      <div className="px-3 pb-4 pt-3 sm:px-4">
+        <p className="text-xl font-bold tracking-tight text-gray-900">{formatPrice(item.price)} ₽</p>
+        <h2 className="mt-1 truncate text-sm font-semibold leading-5 text-gray-800 sm:text-base">
           {item.title}
         </h2>
-        {item.description ? (
-          <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-            {item.description}
-          </p>
-        ) : null}
-        <p className="mt-auto pt-3 text-xs text-gray-400">
-          {meta || 'Размер и параметры появятся позже'}
-        </p>
       </div>
     </article>
   )

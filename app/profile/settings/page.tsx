@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, UserRound } from 'lucide-react'
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 
 import { useAuth } from '../../components/AuthProvider'
 import { supabase } from '../../lib/supabase'
@@ -12,15 +12,15 @@ export default function ProfileSettingsPage() {
   const router = useRouter()
   const { session, loading } = useAuth()
   const user = session?.user ?? null
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [name, setName] = useState('')
   const [city, setCity] = useState('')
   const [password, setPassword] = useState('')
-  const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [isSavingProfile, setIsSavingProfile] = useState(false)
-  const [isSavingPassword, setIsSavingPassword] = useState(false)
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     if (loading || user) {
@@ -54,44 +54,21 @@ export default function ProfileSettingsPage() {
 
   const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (!file) {
+    if (!file || !user) {
       return
     }
 
-    setAvatarFile(file)
-    setSuccess('')
-    setError('')
+    const uploadAvatar = async () => {
+      setError('')
+      setSuccess('')
+      setIsUploadingAvatar(true)
 
-    if (avatarPreviewUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(avatarPreviewUrl)
-    }
-
-    setAvatarPreviewUrl(URL.createObjectURL(file))
-  }
-
-  const handleProfileSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    if (!user) {
-      setError('Сначала войдите в аккаунт')
-      return
-    }
-
-    setError('')
-    setSuccess('')
-    setIsSavingProfile(true)
-
-    try {
-      let nextAvatarUrl =
-        typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : ''
-
-      if (avatarFile) {
-        const ext = avatarFile.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-        const fileName = `${user.id}-${Date.now()}.${ext}`
-
+      try {
+        const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+        const fileName = `${user.id}/avatar-${Date.now()}.${ext}`
         const { error: uploadError } = await supabase.storage
           .from('avatars')
-          .upload(fileName, avatarFile, { upsert: true, cacheControl: '3600' })
+          .upload(fileName, file, { upsert: true, cacheControl: '3600' })
 
         if (uploadError) {
           throw uploadError
@@ -100,63 +77,75 @@ export default function ProfileSettingsPage() {
         const {
           data: { publicUrl },
         } = supabase.storage.from('avatars').getPublicUrl(fileName)
-        nextAvatarUrl = publicUrl
+
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: {
+            ...user.user_metadata,
+            avatar_url: publicUrl,
+          },
+        })
+
+        if (updateError) {
+          throw updateError
+        }
+
+        setAvatarPreviewUrl(publicUrl)
+        setSuccess('Аватар обновлен')
+      } catch (uploadAvatarError) {
+        setError(
+          uploadAvatarError instanceof Error
+            ? uploadAvatarError.message
+            : 'Не удалось обновить аватар'
+        )
+      } finally {
+        setIsUploadingAvatar(false)
       }
-
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: {
-          ...user.user_metadata,
-          name: name.trim(),
-          city: city.trim(),
-          avatar_url: nextAvatarUrl || null,
-        },
-      })
-
-      if (updateError) {
-        throw updateError
-      }
-
-      setAvatarFile(null)
-      setSuccess('Данные профиля сохранены')
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Не удалось сохранить данные')
-    } finally {
-      setIsSavingProfile(false)
     }
+
+    void uploadAvatar()
+    event.target.value = ''
   }
 
-  const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSave = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    const nextPassword = password.trim()
-
-    if (!nextPassword) {
-      setError('Введите новый пароль')
+    if (!user) {
+      setError('Сначала войдите в аккаунт')
       return
     }
 
-    if (nextPassword.length < 6) {
+    const nextPassword = password.trim()
+    if (nextPassword && nextPassword.length < 6) {
       setError('Пароль должен быть не короче 6 символов')
       return
     }
 
     setError('')
     setSuccess('')
-    setIsSavingPassword(true)
+    setIsSaving(true)
 
-    const { error: passwordError } = await supabase.auth.updateUser({
-      password: nextPassword,
-    })
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: {
+          ...user.user_metadata,
+          name: name.trim(),
+          city: city.trim(),
+          avatar_url: avatarPreviewUrl || null,
+        },
+        ...(nextPassword ? { password: nextPassword } : {}),
+      })
 
-    setIsSavingPassword(false)
+      if (updateError) {
+        throw updateError
+      }
 
-    if (passwordError) {
-      setError(passwordError.message)
-      return
+      setPassword('')
+      setSuccess(nextPassword ? 'Данные и пароль сохранены' : 'Данные профиля сохранены')
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Не удалось сохранить данные')
+    } finally {
+      setIsSaving(false)
     }
-
-    setPassword('')
-    setSuccess('Пароль обновлен')
   }
 
   if (loading || !user) {
@@ -180,17 +169,18 @@ export default function ProfileSettingsPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Настройки аккаунта</h1>
-            <p className="text-sm text-slate-500">Минималистичный контроль профиля</p>
+            <p className="text-sm text-slate-500">Управление профилем и безопасностью</p>
           </div>
         </header>
 
         <form
-          onSubmit={handleProfileSubmit}
-          className="space-y-4 rounded-[2rem] border border-slate-200/70 bg-white p-5 shadow-sm"
+          onSubmit={handleSave}
+          className="overflow-hidden rounded-[2rem] border border-slate-200/70 bg-white shadow-sm"
         >
-          <div>
-            <p className="text-sm font-medium text-slate-600">Аватарка</p>
-            <div className="mt-3 flex items-center gap-4">
+          <section className="px-5 py-5">
+            <h2 className="text-base font-semibold text-slate-950">Аватар</h2>
+            <p className="mt-1 text-sm text-slate-500">Фото загружается сразу после выбора файла</p>
+            <div className="mt-4 flex items-center gap-4">
               <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-slate-500">
                 {hasAvatar ? (
                   <img src={avatarPreviewUrl} alt="Аватар" className="h-full w-full object-cover" />
@@ -198,19 +188,28 @@ export default function ProfileSettingsPage() {
                   <UserRound className="h-8 w-8" />
                 )}
               </div>
-              <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-[#faf7f3] px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-[#faf7f3] px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+                disabled={isUploadingAvatar}
+              >
                 Выбрать фото
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAvatarChange}
-                  className="hidden"
-                />
-              </label>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="hidden"
+              />
             </div>
-          </div>
+          </section>
 
-          <div>
+          <div className="h-px w-full bg-slate-200/70" />
+
+          <section className="px-5 py-5">
+            <h2 className="text-base font-semibold text-slate-950">Личные данные</h2>
             <label htmlFor="name" className="mb-2 block text-sm font-medium text-slate-600">
               Имя
             </label>
@@ -222,10 +221,7 @@ export default function ProfileSettingsPage() {
               className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-base outline-none placeholder:text-slate-400 focus:border-slate-950 focus:bg-white"
               placeholder="Ваше имя"
             />
-          </div>
-
-          <div>
-            <label htmlFor="city" className="mb-2 block text-sm font-medium text-slate-600">
+            <label htmlFor="city" className="mb-2 mt-4 block text-sm font-medium text-slate-600">
               Город
             </label>
             <input
@@ -236,22 +232,12 @@ export default function ProfileSettingsPage() {
               className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-base outline-none placeholder:text-slate-400 focus:border-slate-950 focus:bg-white"
               placeholder="Ваш город"
             />
-          </div>
+          </section>
 
-          <button
-            type="submit"
-            disabled={isSavingProfile}
-            className="h-12 w-full rounded-xl bg-slate-950 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-          >
-            {isSavingProfile ? 'Сохраняем...' : 'Сохранить профиль'}
-          </button>
-        </form>
+          <div className="h-px w-full bg-slate-200/70" />
 
-        <form
-          onSubmit={handlePasswordSubmit}
-          className="mt-4 space-y-4 rounded-[2rem] border border-slate-200/70 bg-white p-5 shadow-sm"
-        >
-          <div>
+          <section className="px-5 py-5">
+            <h2 className="text-base font-semibold text-slate-950">Пароль</h2>
             <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-600">
               Новый пароль
             </label>
@@ -263,16 +249,30 @@ export default function ProfileSettingsPage() {
               className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-base outline-none placeholder:text-slate-400 focus:border-slate-950 focus:bg-white"
               placeholder="Минимум 6 символов"
             />
-          </div>
+          </section>
 
-          <button
-            type="submit"
-            disabled={isSavingPassword}
-            className="h-12 w-full rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
-          >
-            {isSavingPassword ? 'Обновляем...' : 'Обновить пароль'}
-          </button>
+          <div className="h-px w-full bg-slate-200/70" />
+
+          <section className="px-5 py-5">
+            <button
+              type="submit"
+              disabled={isSaving || isUploadingAvatar}
+              className="h-14 w-full rounded-2xl bg-slate-950 text-base font-semibold text-white shadow-sm disabled:opacity-60"
+            >
+              {isSaving ? 'Сохраняем...' : 'Сохранить'}
+            </button>
+          </section>
         </form>
+
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => router.push('/profile')}
+            className="h-12 w-full rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            Вернуться в профиль
+          </button>
+        </div>
 
         {error ? (
           <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
