@@ -13,7 +13,7 @@ type Item = {
   id: string
   title: string
   price: number
-  image_url: string | null
+  image_urls: string[] | null
   size: string | null
   gender: string | null
   category: string | null
@@ -84,7 +84,7 @@ export default function FavoritesPage() {
       }
 
       const { data: itemsData, error: itemsError } = await (supabase.from('items') as any)
-        .select('id, title, price, image_url, size, gender, category, description')
+        .select('id, title, price, image_urls, size, gender, category, description')
         .in('id', itemIds)
 
       if (!active) {

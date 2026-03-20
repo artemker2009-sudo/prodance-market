@@ -1,51 +1,42 @@
 'use client'
 
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import {
   Bell,
-  ChevronRight,
   Headphones,
   Heart,
   LogOut,
   MapPin,
   Settings2,
   Sparkles,
-  UserRound,
 } from 'lucide-react'
 
 import { useAuth } from '../components/AuthProvider'
 import { supabase, waitForSupabaseSession } from '../lib/supabase'
+import { PremiumItemCard } from './components/PremiumItemCard'
+
+type Item = {
+  id: string
+  title: string
+  price: number
+  image_urls: string[] | null
+  size: string | null
+  gender: string | null
+  category: string | null
+  description: string | null
+}
+
+const tabs = [
+  { key: 'my', label: 'Мои объявления' },
+  { key: 'favorites', label: 'Избранное' },
+] as const
 
 const menuItems = [
-  {
-    key: 'favorites',
-    label: 'Избранное',
-    icon: Heart,
-    href: '/profile/favorites',
-  },
-  {
-    key: 'my-listings',
-    label: 'Мои объявления',
-    icon: Sparkles,
-    href: '/profile/my-listings',
-  },
-  {
-    key: 'settings',
-    label: 'Настройки аккаунта',
-    icon: Settings2,
-    href: '/profile/settings',
-  },
-  {
-    key: 'notifications',
-    label: 'Уведомления',
-    icon: Bell,
-  },
-  {
-    key: 'support',
-    label: 'Служба поддержки',
-    icon: Headphones,
-  },
+  { key: 'settings', label: 'Настройки', icon: Settings2 },
+  { key: 'support', label: 'Поддержка', icon: Headphones },
+  { key: 'notifications', label: 'Уведомления', icon: Bell },
 ] as const
 
 export default function ProfilePage() {
@@ -53,6 +44,10 @@ export default function ProfilePage() {
   const { session, profile, loading } = useAuth()
   const [error, setError] = useState('')
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]['key']>('my')
+  const [myItems, setMyItems] = useState<Item[]>([])
+  const [favoriteItems, setFavoriteItems] = useState<Item[]>([])
+  const [loadingItems, setLoadingItems] = useState(true)
   const [stats, setStats] = useState({
     published: 0,
     favorites: 0,
@@ -61,9 +56,11 @@ export default function ProfilePage() {
   const [toastMessage, setToastMessage] = useState('')
   const user = session?.user ?? null
   const avatarUrl =
-    typeof user?.user_metadata?.avatar_url === 'string'
-      ? user.user_metadata.avatar_url
-      : ''
+    typeof (profile as { avatar_url?: string | null } | null)?.avatar_url === 'string'
+      ? ((profile as { avatar_url?: string | null }).avatar_url ?? '')
+      : typeof user?.user_metadata?.avatar_url === 'string'
+        ? user.user_metadata.avatar_url
+        : ''
   const displayPhone = useMemo(() => {
     const phoneFromEmail = user?.email?.endsWith('@prodance.app')
       ? user.email.replace('@prodance.app', '')
@@ -98,6 +95,7 @@ export default function ProfilePage() {
 
     return 'Профиль'
   }, [user])
+  const initial = displayName[0]?.toUpperCase() ?? 'P'
 
   useEffect(() => {
     if (loading || user) {
@@ -148,6 +146,78 @@ export default function ProfilePage() {
   }, [user?.id])
 
   useEffect(() => {
+    if (!user?.id) {
+      return
+    }
+
+    let active = true
+
+    const loadItems = async () => {
+      setLoadingItems(true)
+
+      const [{ data: myRows, error: myError }, { data: favoriteRows, error: favoriteError }] =
+        await Promise.all([
+          (supabase.from('items') as any)
+            .select('id, title, price, image_urls, size, gender, category, description')
+            .eq('seller_id', user.id)
+            .order('created_at', { ascending: false }),
+          (supabase.from('favorites') as any)
+            .select('item_id')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false }),
+        ])
+
+      if (!active) {
+        return
+      }
+
+      if (myError || favoriteError) {
+        setError(myError?.message ?? favoriteError?.message ?? 'Не удалось загрузить карточки')
+        setMyItems([])
+        setFavoriteItems([])
+        setLoadingItems(false)
+        return
+      }
+
+      setMyItems((myRows ?? []) as Item[])
+      const itemIds = ((favoriteRows ?? []) as Array<{ item_id: string }>).map((row) => row.item_id)
+
+      if (!itemIds.length) {
+        setFavoriteItems([])
+        setLoadingItems(false)
+        return
+      }
+
+      const { data: favoriteItemsRows, error: favoriteItemsError } = await (supabase.from(
+        'items'
+      ) as any)
+        .select('id, title, price, image_urls, size, gender, category, description')
+        .in('id', itemIds)
+
+      if (!active) {
+        return
+      }
+
+      if (favoriteItemsError) {
+        setError(favoriteItemsError.message)
+        setFavoriteItems([])
+        setLoadingItems(false)
+        return
+      }
+
+      const byId = new Map(((favoriteItemsRows ?? []) as Item[]).map((item) => [item.id, item] as const))
+      setFavoriteItems(itemIds.map((id) => byId.get(id)).filter(Boolean) as Item[])
+      setLoadingItems(false)
+    }
+
+    void loadItems()
+
+    return () => {
+      active = false
+    }
+  }, [user?.id])
+
+  useEffect(() => {
     if (!toastMessage) {
       return
     }
@@ -162,19 +232,15 @@ export default function ProfilePage() {
   }, [toastMessage])
 
   const handleMenuClick = (item: (typeof menuItems)[number]) => {
-    if ('href' in item) {
-      router.push(item.href)
-      return
-    }
-
     if (item.key === 'support') {
-      setToastMessage('Служба поддержки будет добавлена вместе с запуском админ-панели')
+      setToastMessage('Поддержка в разработке')
       return
     }
-
     if (item.key === 'notifications') {
-      setToastMessage('Уведомления находятся в разработке')
+      setToastMessage('Уведомления в разработке')
+      return
     }
+    setToastMessage('Настройки в разработке')
   }
 
   const handleSignOut = async () => {
@@ -190,7 +256,8 @@ export default function ProfilePage() {
     }
 
     await waitForSupabaseSession('signed-out')
-    window.location.assign('/login')
+    router.replace('/login')
+    router.refresh()
   }
 
   if (loading || !user) {
@@ -207,9 +274,17 @@ export default function ProfilePage() {
         <section className="rounded-[2rem] border border-slate-200/70 bg-white px-6 py-8 text-center shadow-sm">
           <div className="mx-auto flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-slate-500">
             {avatarUrl ? (
-              <img src={avatarUrl} alt="Аватар профиля" className="h-full w-full object-cover" />
+              <Image
+                src={avatarUrl}
+                alt="Аватар профиля"
+                width={112}
+                height={112}
+                className="h-full w-full object-cover"
+                sizes="112px"
+                unoptimized
+              />
             ) : (
-              <UserRound className="h-12 w-12" />
+              <span className="text-4xl font-semibold text-slate-500">{initial}</span>
             )}
           </div>
           <h1 className="mt-5 text-3xl font-bold tracking-tight text-slate-950">{displayName}</h1>
@@ -237,11 +312,57 @@ export default function ProfilePage() {
           </div>
         </section>
 
+        <section className="rounded-[2rem] border border-slate-200/70 bg-white p-2 shadow-sm">
+          <div className="grid grid-cols-2 gap-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`h-11 rounded-2xl text-sm font-semibold transition ${
+                  activeTab === tab.key
+                    ? 'bg-slate-950 text-white'
+                    : 'bg-[#faf7f3] text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {loadingItems ? (
+          <section className="rounded-[2rem] border border-slate-200/70 bg-white px-6 py-12 text-center text-sm text-slate-500 shadow-sm">
+            Загружаем подборку...
+          </section>
+        ) : (
+          <section className="rounded-[2rem] border border-slate-200/70 bg-white p-4 shadow-sm">
+            {activeTab === 'my' ? (
+              myItems.length ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {myItems.map((item) => (
+                    <PremiumItemCard key={item.id} item={item} href={`/item/${item.id}`} />
+                  ))}
+                </div>
+              ) : (
+                <p className="py-8 text-center text-sm text-slate-500">У вас пока нет объявлений</p>
+              )
+            ) : favoriteItems.length ? (
+              <div className="grid grid-cols-2 gap-3">
+                {favoriteItems.map((item) => (
+                  <PremiumItemCard key={item.id} item={item} href={`/item/${item.id}`} />
+                ))}
+              </div>
+            ) : (
+              <p className="py-8 text-center text-sm text-slate-500">Избранное пока пусто</p>
+            )}
+          </section>
+        )}
+
         <section className="overflow-hidden rounded-[2rem] border border-slate-200/70 bg-white shadow-sm">
           <ul className="divide-y divide-slate-200/70">
             {menuItems.map((item) => {
               const Icon = item.icon
-
               return (
                 <li key={item.key}>
                   <button
@@ -255,7 +376,7 @@ export default function ProfilePage() {
                     <span className="min-w-0 flex-1 text-[15px] font-medium text-slate-950">
                       {item.label}
                     </span>
-                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                    <Sparkles className="h-4 w-4 text-slate-300" />
                   </button>
                 </li>
               )

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { PackageOpen } from 'lucide-react'
 
 import { createSupabaseServerClient } from './lib/supabase-server'
@@ -7,7 +8,7 @@ type Item = {
   id: string
   title: string
   price: number
-  image_url: string | null
+  image_urls: string[] | null
   size: string | null
   gender: string | null
   category: string | null
@@ -32,15 +33,21 @@ function ProductPlaceholder() {
 
 function ProductCard({ item }: { item: Item }) {
   const meta = [item.size, item.gender, item.category].filter(Boolean).join(' • ')
+  const previewImage = item.image_urls?.[0] ?? null
 
   return (
     <article className="overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
-      {item.image_url ? (
-        <img
-          src={item.image_url}
-          alt={item.title}
-          className="aspect-[3/4] w-full bg-slate-100 object-cover"
-        />
+      {previewImage ? (
+        <div className="relative aspect-[3/4] w-full bg-slate-100">
+          <Image
+            src={previewImage}
+            alt={item.title}
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            className="object-cover"
+            unoptimized
+          />
+        </div>
       ) : (
         <ProductPlaceholder />
       )}

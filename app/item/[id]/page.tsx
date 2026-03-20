@@ -1,8 +1,10 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 
 import { createSupabaseServerClient } from '../../lib/supabase-server'
+import { FavoriteToggle, StartConversationButton } from './item-actions'
 
 type ItemPageProps = {
   params: Promise<{
@@ -14,7 +16,8 @@ type Item = {
   id: string
   title: string
   price: number
-  image_url: string | null
+  image_urls: string[] | null
+  seller_id: string | null
   size: string | null
   gender: string | null
   category: string | null
@@ -42,7 +45,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
   const supabase = await createSupabaseServerClient()
 
   const { data, error } = await (supabase.from('items') as any)
-    .select('id, title, price, image_url, size, gender, category, description')
+    .select('id, title, price, image_urls, seller_id, size, gender, category, description')
     .eq('id', id)
     .maybeSingle()
 
@@ -55,6 +58,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
   if (!item) {
     notFound()
   }
+  const gallery = item.image_urls?.filter(Boolean) ?? []
 
   const specs = [
     { label: 'Размер', value: item.size || 'Не указан' },
@@ -63,7 +67,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
   ]
 
   return (
-    <main className="min-h-screen bg-slate-50 pb-40 text-slate-950 md:pb-32">
+    <main className="min-h-screen bg-[#faf7f3] pb-40 text-slate-950 md:pb-32">
       <section className="relative">
         <header className="absolute inset-x-0 top-0 z-20 flex items-center justify-between px-4 py-4">
           <Link
@@ -75,19 +79,31 @@ export default async function ItemPage({ params }: ItemPageProps) {
           </Link>
         </header>
 
-        {item.image_url ? (
-          <img
-            src={item.image_url}
-            alt={item.title}
-            className="aspect-[3/4] w-full bg-slate-100 object-cover"
-          />
+        {gallery.length ? (
+          <div className="flex snap-x snap-mandatory overflow-x-auto">
+            {gallery.map((imageUrl, index) => (
+              <div key={`${item.id}-${index}`} className="relative aspect-[3/4] w-full shrink-0 snap-center">
+                <Image
+                  src={imageUrl}
+                  alt={`${item.title} — фото ${index + 1}`}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 480px"
+                  className="bg-slate-100 object-cover"
+                  unoptimized
+                />
+              </div>
+            ))}
+          </div>
         ) : (
           <ProductImagePlaceholder />
         )}
       </section>
 
       <section className="relative z-10 -mt-6 rounded-t-3xl bg-white px-4 pb-8 pt-6 shadow-[0_-10px_30px_-20px_rgba(15,23,42,0.18)]">
-        <p className="text-3xl font-bold text-slate-900">{formatPrice(item.price)} ₽</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-3xl font-bold text-slate-900">{formatPrice(item.price)} ₽</p>
+          <FavoriteToggle itemId={item.id} />
+        </div>
         <h1 className="mt-1 text-lg text-slate-700">{item.title}</h1>
 
         <div className="mt-5 flex flex-wrap gap-2">
@@ -110,12 +126,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
       </section>
 
       <div className="fixed bottom-16 left-1/2 z-40 w-full max-w-[480px] -translate-x-1/2 border-t border-slate-200 bg-white px-4 py-4 pb-safe md:bottom-0">
-        <Link
-          href="/messages"
-          className="flex h-14 w-full items-center justify-center rounded-2xl bg-slate-950 text-base font-semibold text-white"
-        >
-          Написать продавцу
-        </Link>
+        <StartConversationButton itemId={item.id} sellerId={item.seller_id} />
       </div>
     </main>
   )

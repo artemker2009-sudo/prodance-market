@@ -72,23 +72,34 @@ export default function CreatePage() {
     setIsSubmitting(true)
 
     try {
-      const mainPhoto = photoFiles[mainPhotoIndex] ?? photoFiles[0]
-      const fileName = `${Date.now()}-${mainPhoto.name.replace(/\s+/g, '-')}`
+      const uploadedUrls: string[] = []
 
-      const { error: uploadError } = await supabase.storage
-        .from('marketplace-images')
-        .upload(fileName, mainPhoto, {
-          cacheControl: '3600',
-          upsert: false,
-        })
+      for (let index = 0; index < photoFiles.length; index += 1) {
+        const file = photoFiles[index]
+        const fileName = `${Date.now()}-${index}-${file.name.replace(/\s+/g, '-')}`
+        const { error: uploadError } = await supabase.storage
+          .from('marketplace-images')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false,
+          })
 
-      if (uploadError) {
-        throw uploadError
+        if (uploadError) {
+          throw uploadError
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from('marketplace-images').getPublicUrl(fileName)
+        uploadedUrls.push(publicUrl)
       }
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('marketplace-images').getPublicUrl(fileName)
+      const normalizedMainIndex =
+        mainPhotoIndex >= 0 && mainPhotoIndex < uploadedUrls.length ? mainPhotoIndex : 0
+      const orderedImageUrls = [
+        uploadedUrls[normalizedMainIndex],
+        ...uploadedUrls.filter((_, index) => index !== normalizedMainIndex),
+      ].filter(Boolean)
 
       const { error: insertError } = await (supabase.from('items') as any).insert({
         title,
@@ -97,7 +108,7 @@ export default function CreatePage() {
         size,
         price,
         description: description || null,
-        image_url: publicUrl,
+        image_urls: orderedImageUrls,
         seller_id: user.id,
       })
 

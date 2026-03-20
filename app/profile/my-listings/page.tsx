@@ -13,7 +13,7 @@ type Item = {
   id: string
   title: string
   price: number
-  image_url: string | null
+  image_urls: string[] | null
   size: string | null
   gender: string | null
   category: string | null
@@ -64,7 +64,7 @@ export default function MyListingsPage() {
       setError('')
 
       const { data, error: queryError } = await (supabase.from('items') as any)
-        .select('id, title, price, image_url, size, gender, category, description, status')
+        .select('id, title, price, image_urls, size, gender, category, description, status')
         .eq('seller_id', user.id)
         .order('created_at', { ascending: false })
 
