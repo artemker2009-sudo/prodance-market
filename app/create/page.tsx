@@ -72,27 +72,38 @@ export default function CreatePage() {
     setIsSubmitting(true)
 
     try {
-      const uploadedUrls: string[] = []
+      const orderedPhotoFiles = [...photoFiles]
+      const isMainPhotoIndexValid =
+        mainPhotoIndex >= 0 && mainPhotoIndex < orderedPhotoFiles.length
 
-      for (let index = 0; index < photoFiles.length; index += 1) {
-        const file = photoFiles[index]
-        const fileName = `${Date.now()}-${index}-${file.name.replace(/\s+/g, '-')}`
-        const { error: uploadError } = await supabase.storage
-          .from('marketplace-images')
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: false,
-          })
+      if (isMainPhotoIndexValid) {
+        const [mainFile] = orderedPhotoFiles.splice(mainPhotoIndex, 1)
 
-        if (uploadError) {
-          throw uploadError
+        if (mainFile) {
+          orderedPhotoFiles.unshift(mainFile)
         }
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from('marketplace-images').getPublicUrl(fileName)
-        uploadedUrls.push(publicUrl)
       }
+
+      const uploadedUrls = await Promise.all(
+        orderedPhotoFiles.map(async (file, index) => {
+          const fileName = `${Date.now()}-${index}-${file.name.replace(/\s+/g, '-')}`
+          const { error: uploadError } = await supabase.storage
+            .from('marketplace-images')
+            .upload(fileName, file, {
+              cacheControl: '3600',
+              upsert: false,
+            })
+
+          if (uploadError) {
+            throw uploadError
+          }
+
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from('marketplace-images').getPublicUrl(fileName)
+          return publicUrl
+        })
+      )
 
       const { error: insertError } = await (supabase.from('items') as any).insert({
         title,

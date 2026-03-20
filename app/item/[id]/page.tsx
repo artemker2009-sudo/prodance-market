@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Camera } from 'lucide-react'
 
 import { createSupabaseServerClient } from '../../lib/supabase-server'
 import { FavoriteToggle, StartConversationButton } from './item-actions'
@@ -58,8 +58,6 @@ export default async function ItemPage({ params }: ItemPageProps) {
   if (!item) {
     notFound()
   }
-  const gallery = item.image_urls?.filter(Boolean) ?? []
-
   const specs = [
     { label: 'Размер', value: item.size || 'Не указан' },
     { label: 'Категория', value: item.category || 'Не указана' },
@@ -79,23 +77,29 @@ export default async function ItemPage({ params }: ItemPageProps) {
           </Link>
         </header>
 
-        {gallery.length ? (
-          <div className="flex overflow-x-auto snap-x">
-            {gallery.map((imageUrl, index) => (
-              <div
-                key={`${item.id}-${index}`}
-                className="relative aspect-[3/4] min-w-full snap-center"
-              >
-                <Image
-                  src={imageUrl}
-                  alt={`${item.title} — фото ${index + 1}`}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 480px"
-                  className="bg-slate-100 object-cover"
-                  unoptimized
-                />
-              </div>
-            ))}
+        {item.image_urls && item.image_urls.length > 0 ? (
+          <div className="relative">
+            <div
+              className="flex overflow-x-auto snap-x snap-mandatory w-full scrollbar-hide"
+              style={{ scrollbarWidth: 'none' }}
+            >
+              {item.image_urls.map((url, index) => (
+                <div key={index} className="relative min-w-full snap-center aspect-[3/4] bg-slate-100">
+                  <Image
+                    src={url}
+                    alt={`${item.title} — фото ${index + 1}`}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 480px"
+                    className="object-cover"
+                    unoptimized
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="pointer-events-none absolute bottom-4 right-4 inline-flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
+              <Camera className="h-3.5 w-3.5" />
+              <span>{item.image_urls.length}</span>
+            </div>
           </div>
         ) : (
           <ProductImagePlaceholder />
