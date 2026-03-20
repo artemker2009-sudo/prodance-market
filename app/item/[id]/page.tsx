@@ -22,10 +22,38 @@ type Item = {
   gender: string | null
   category: string | null
   description: string | null
+  profiles?: {
+    id: string
+    name: string | null
+    avatar_url: string | null
+    city: string | null
+    created_at: string
+  } | null
+}
+
+type SellerProfile = {
+  id: string
+  name: string | null
+  avatar_url: string | null
+  city: string | null
+  created_at: string
 }
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat('ru-RU').format(price)
+}
+
+function getRegistrationYear(dateValue: string | null | undefined) {
+  if (!dateValue) {
+    return null
+  }
+
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  return date.getFullYear()
 }
 
 function ProductImagePlaceholder() {
@@ -45,19 +73,37 @@ export default async function ItemPage({ params }: ItemPageProps) {
   const supabase = await createSupabaseServerClient()
 
   const { data, error } = await (supabase.from('items') as any)
-    .select('id, title, price, image_urls, seller_id, size, gender, category, description')
+    .select('*, profiles!items_seller_id_fkey(*)')
     .eq('id', id)
-    .maybeSingle()
+    .single()
 
   if (error) {
+    if (error.code === 'PGRST116') {
+      notFound()
+    }
     throw new Error(error.message)
   }
 
-  const item = data as Item | null
+  const item = data as Item
+  let sellerProfile = item.profiles ?? null
 
-  if (!item) {
-    notFound()
+  if (!sellerProfile && item.seller_id) {
+    const { data: fallbackProfile, error: fallbackError } = await (supabase.from('profiles') as any)
+      .select('id, name, avatar_url, city, created_at')
+      .eq('id', item.seller_id)
+      .maybeSingle()
+
+    if (fallbackError) {
+      throw new Error(fallbackError.message)
+    }
+
+    sellerProfile = (fallbackProfile as SellerProfile | null) ?? null
   }
+
+  const sellerName = sellerProfile?.name?.trim() || 'Продавец'
+  const registrationYear = getRegistrationYear(sellerProfile?.created_at)
+  const sellerAvatarLetter = sellerName.charAt(0).toUpperCase()
+  const sellerProfileHref = item.seller_id ? `/user/${item.seller_id}` : '#'
   const specs = [
     { label: 'Размер', value: item.size || 'Не указан' },
     { label: 'Категория', value: item.category || 'Не указана' },
@@ -130,6 +176,33 @@ export default async function ItemPage({ params }: ItemPageProps) {
             {item.description || 'Продавец пока не добавил описание для этого товара.'}
           </p>
         </section>
+
+        <Link
+          href={sellerProfileHref}
+          className="mt-5 flex items-center gap-4 rounded-2xl bg-white p-4 shadow-[0_8px_24px_-18px_rgba(15,23,42,0.5)] transition hover:shadow-[0_14px_34px_-20px_rgba(15,23,42,0.45)]"
+        >
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-lg font-semibold text-slate-700">
+            {sellerProfile?.avatar_url ? (
+              <Image
+                src={sellerProfile.avatar_url}
+                alt={sellerName}
+                width={56}
+                height={56}
+                className="h-14 w-14 object-cover"
+                unoptimized
+              />
+            ) : (
+              <span>{sellerAvatarLetter || 'П'}</span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base font-bold text-slate-900">{sellerName}</p>
+            <p className="mt-1 text-sm text-slate-500">
+              На ProDance с {registrationYear ?? 'недавно'}
+            </p>
+          </div>
+          <span className="text-xl leading-none text-slate-400">&gt;</span>
+        </Link>
       </section>
 
       <div className="fixed bottom-16 left-1/2 z-40 w-full max-w-[480px] -translate-x-1/2 border-t border-slate-200 bg-white px-4 py-4 pb-safe md:bottom-0">
