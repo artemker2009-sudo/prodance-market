@@ -1,18 +1,18 @@
-'use client'
+import { revalidatePath } from 'next/cache'
 
-import { useEffect, useState } from 'react'
-
-import { supabase } from '../../lib/supabase'
+import { supabaseAdmin } from '../../lib/supabase-admin'
 
 type SupportTicketRow = {
   id: string
   message: string | null
   created_at: string | null
   user_id: string | null
-  profile: {
-    id: string
-    name: string | null
-  } | null
+  profile: ProfileRow | null
+}
+
+type ProfileRow = {
+  id: string
+  name: string | null
 }
 
 function formatDate(value: string | null) {
@@ -29,61 +29,66 @@ function formatDate(value: string | null) {
   }).format(new Date(value))
 }
 
-export default function AdminSupportPage() {
-  const [tickets, setTickets] = useState<SupportTicketRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [resolvingId, setResolvingId] = useState<string | null>(null)
+async function resolveTicketAction(formData: FormData) {
+  'use server'
 
-  useEffect(() => {
-    let active = true
+  const ticketId = formData.get('ticket_id')
 
-    const loadTickets = async () => {
-      setLoading(true)
-      setError('')
+  if (typeof ticketId !== 'string' || !ticketId) {
+    return
+  }
 
-      const { data, error: queryError } = await (supabase.from('support_tickets') as any)
-        .select('id, message, created_at, user_id, profile:profiles(id, name)')
-        .order('created_at', { ascending: false })
+  await (supabaseAdmin.from('support_tickets') as any).delete().eq('id', ticketId)
+  revalidatePath('/admin/support')
+}
 
-      if (!active) {
-        return
+export default async function AdminSupportPage() {
+  let error = ''
+  let tickets: SupportTicketRow[] = []
+
+  const { data: ticketRows, error: ticketsError } = await (supabaseAdmin
+    .from('support_tickets') as any)
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (ticketsError) {
+    error = ticketsError.message
+  } else {
+    const rawTickets = (ticketRows ?? []) as Array<{
+      id: string
+      message: string | null
+      created_at: string | null
+      user_id: string | null
+    }>
+
+    const userIds = [...new Set(rawTickets.map((ticket) => ticket.user_id).filter(Boolean))] as string[]
+    let profiles: ProfileRow[] = []
+
+    if (userIds.length) {
+      const { data: profileRows, error: profilesError } = await (supabaseAdmin
+        .from('profiles') as any)
+        .select('*')
+        .in('id', userIds)
+
+      if (profilesError) {
+        error = profilesError.message
+      } else {
+        profiles = ((profileRows ?? []) as Array<{ id: string; name: string | null }>).map((profile) => ({
+          id: profile.id,
+          name: profile.name,
+        }))
       }
-
-      if (queryError) {
-        setError(queryError.message)
-        setTickets([])
-        setLoading(false)
-        return
-      }
-
-      setTickets((data ?? []) as SupportTicketRow[])
-      setLoading(false)
     }
 
-    void loadTickets()
+    const profilesMap = new Map(profiles.map((profile) => [profile.id, profile] as const))
 
-    return () => {
-      active = false
-    }
-  }, [])
-
-  const handleResolve = async (ticket: SupportTicketRow) => {
-    setResolvingId(ticket.id)
-    setError('')
-
-    const { error: deleteError } = await (supabase.from('support_tickets') as any)
-      .delete()
-      .eq('id', ticket.id)
-
-    if (deleteError) {
-      setError(deleteError.message)
-      setResolvingId(null)
-      return
-    }
-
-    setTickets((prev) => prev.filter((row) => row.id !== ticket.id))
-    setResolvingId(null)
+    tickets = rawTickets.map((ticket) => ({
+      id: ticket.id,
+      message: ticket.message,
+      created_at: ticket.created_at,
+      user_id: ticket.user_id,
+      profile: ticket.user_id ? profilesMap.get(ticket.user_id) ?? null : null,
+    }))
   }
 
   return (
@@ -108,13 +113,7 @@ export default function AdminSupportPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
-            {loading ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
-                  Загружаем обращения...
-                </td>
-              </tr>
-            ) : !tickets.length ? (
+            {!tickets.length ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
                   Открытых тикетов нет
@@ -131,14 +130,15 @@ export default function AdminSupportPage() {
                   </td>
                   <td className="px-4 py-4 text-slate-700">{formatDate(ticket.created_at)}</td>
                   <td className="px-4 py-4 text-right">
-                    <button
-                      type="button"
-                      onClick={() => handleResolve(ticket)}
-                      disabled={resolvingId === ticket.id}
-                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
-                    >
-                      {resolvingId === ticket.id ? 'Закрываем...' : 'Решено'}
-                    </button>
+                    <form action={resolveTicketAction}>
+                      <input type="hidden" name="ticket_id" value={ticket.id} />
+                      <button
+                        type="submit"
+                        className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 font-medium text-emerald-700 transition hover:bg-emerald-100"
+                      >
+                        Решено
+                      </button>
+                    </form>
                   </td>
                 </tr>
               ))
