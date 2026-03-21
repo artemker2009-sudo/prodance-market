@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { Heart, PackageOpen } from 'lucide-react'
+import { PackageOpen } from 'lucide-react'
 
 import { createSupabaseServerClient } from './lib/supabase-server'
+import { FavoriteToggle } from './item/[id]/item-actions'
 
 type Item = {
   id: string
@@ -51,13 +52,19 @@ function ProductCard({ item }: { item: Item }) {
           <ProductPlaceholder />
         )}
         <div className="absolute right-2 top-2 z-10">
-          <button
-            type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow-sm"
-            aria-label="Добавить в избранное"
+          <div
+            className="inline-flex rounded-full border border-white/50 bg-white/50 p-0.5 shadow-sm backdrop-blur-md"
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
           >
-            <Heart className="h-4 w-4" />
-          </button>
+            <FavoriteToggle
+              itemId={item.id}
+              className="h-9 w-9 border-transparent bg-transparent text-slate-500 hover:bg-white/30"
+              iconClassName="h-4 w-4"
+            />
+          </div>
         </div>
       </div>
 

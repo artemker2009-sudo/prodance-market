@@ -8,7 +8,13 @@ import { useAuth } from '../../components/AuthProvider'
 import { buildLoginRedirectHref } from '../../lib/auth-routing'
 import { supabase } from '../../lib/supabase'
 
-export function FavoriteToggle({ itemId }: { itemId: string }) {
+type FavoriteToggleProps = {
+  itemId: string
+  className?: string
+  iconClassName?: string
+}
+
+export function FavoriteToggle({ itemId, className, iconClassName }: FavoriteToggleProps) {
   const router = useRouter()
   const { session } = useAuth()
   const userId = session?.user?.id ?? null
@@ -79,10 +85,12 @@ export function FavoriteToggle({ itemId }: { itemId: string }) {
       type="button"
       onClick={handleToggle}
       disabled={isLoading}
-      className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:text-rose-500 disabled:opacity-60"
+      className={`inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:text-rose-500 disabled:opacity-60 ${className ?? ''}`}
       aria-label={isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}
     >
-      <Heart className={`h-5 w-5 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`} />
+      <Heart
+        className={`h-5 w-5 ${iconClassName ?? ''} ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`}
+      />
     </button>
   )
 }

@@ -3,7 +3,8 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Heart } from 'lucide-react'
+
+import { FavoriteToggle } from '../../item/[id]/item-actions'
 
 type PremiumItem = {
   id: string
@@ -39,13 +40,19 @@ export function PremiumItemCard({
 }) {
   const previewImage = item.image_urls?.[0] ?? null
   const favoriteControl = topRight ?? (
-    <button
-      type="button"
-      className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow-sm"
-      aria-label="Добавить в избранное"
+    <div
+      className="inline-flex rounded-full border border-white/50 bg-white/50 p-0.5 shadow-sm backdrop-blur-md"
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }}
     >
-      <Heart className="h-4 w-4" />
-    </button>
+      <FavoriteToggle
+        itemId={item.id}
+        className="h-9 w-9 border-transparent bg-transparent text-slate-500 hover:bg-white/30"
+        iconClassName="h-4 w-4"
+      />
+    </div>
   )
   const content = (
     <article className="flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
