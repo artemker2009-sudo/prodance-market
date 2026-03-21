@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Send } from 'lucide-react'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
@@ -17,11 +18,30 @@ type Message = {
   created_at: string
 }
 
+type Item = {
+  id: string
+  title: string | null
+  price: number | null
+  image_urls: string[] | null
+}
+
+type Profile = {
+  id: string
+  name: string | null
+}
+
 type Conversation = {
   id: string
   item_id: string
   buyer_id: string
   seller_id: string
+  item: Item | null
+  buyer: Profile | null
+  seller: Profile | null
+}
+
+function formatPrice(price: number) {
+  return new Intl.NumberFormat('ru-RU').format(price)
 }
 
 export default function ConversationPage() {
@@ -60,7 +80,9 @@ export default function ConversationPage() {
       const { data: conversationData, error: conversationError } = await (supabase.from(
         'conversations'
       ) as any)
-        .select('id, item_id, buyer_id, seller_id')
+        .select(
+          'id, item_id, buyer_id, seller_id, item:items(id, title, price, image_urls), buyer:profiles!conversations_buyer_id_fkey(id, name), seller:profiles!conversations_seller_id_fkey(id, name)'
+        )
         .eq('id', conversationId)
         .maybeSingle()
 
@@ -78,25 +100,19 @@ export default function ConversationPage() {
       }
 
       setConversation(conversationData as Conversation)
+      const isBuyer = conversationData.buyer_id === user.id
+      const partner = isBuyer ? conversationData.seller : conversationData.buyer
 
-      const partnerId =
-        conversationData.buyer_id === user.id
-          ? conversationData.seller_id
-          : conversationData.buyer_id
-
-      const [{ data: profileData }, { data: messageRows }] = await Promise.all([
-        supabase.from('profiles').select('name').eq('id', partnerId).maybeSingle(),
-        (supabase.from('messages') as any)
-          .select('id, sender_id, text, is_read, created_at')
-          .eq('conversation_id', conversationId)
-          .order('created_at', { ascending: true }),
-      ])
+      const { data: messageRows } = await (supabase.from('messages') as any)
+        .select('id, sender_id, text, is_read, created_at')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true })
 
       if (!active) {
         return
       }
 
-      const resolvedName = (profileData as { name?: string } | null)?.name
+      const resolvedName = (partner as { name?: string } | null)?.name
       if (resolvedName) {
         setPartnerName(resolvedName)
       }
@@ -179,18 +195,58 @@ export default function ConversationPage() {
 
   return (
     <main className="flex min-h-screen flex-col bg-[#faf7f3] pb-28 text-slate-950 md:pb-10">
-      <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-[#faf7f3]/95 px-4 py-4 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-md items-center gap-3">
-          <Link
-            href="/messages"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div>
-            <p className="text-xs tracking-[0.12em] text-slate-500 uppercase">Диалог</p>
-            <h1 className="text-base font-semibold text-slate-950">{partnerName}</h1>
+      <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-[#faf7f3]/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-md flex-col px-4 py-3">
+          <div className="flex items-center gap-3 pb-3">
+            <Link
+              href="/messages"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <div>
+              <p className="text-xs tracking-[0.12em] text-slate-500 uppercase">Диалог</p>
+              <h1 className="text-base font-semibold text-slate-950">{partnerName}</h1>
+            </div>
           </div>
+
+          {conversation?.item ? (
+            <Link
+              href={`/item/${conversation.item.id}`}
+              className="z-30 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm"
+            >
+              <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-200">
+                {conversation.item.image_urls?.[0] ? (
+                  <Image
+                    src={conversation.item.image_urls[0]}
+                    alt={conversation.item.title?.trim() || 'Товар'}
+                    fill
+                    sizes="48px"
+                    className="object-cover"
+                    unoptimized
+                  />
+                ) : null}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-900">
+                  {conversation.item.title?.trim() || 'Без названия'}
+                </p>
+                <p className="text-sm font-semibold text-slate-950">
+                  {typeof conversation.item.price === 'number'
+                    ? `${formatPrice(conversation.item.price)} ₽`
+                    : 'Цена не указана'}
+                </p>
+              </div>
+            </Link>
+          ) : (
+            <div className="z-30 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+              <div className="h-12 w-12 shrink-0 rounded-lg bg-slate-200" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-900">Товар удален</p>
+                <p className="text-sm font-semibold text-slate-500">Объявление недоступно</p>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 

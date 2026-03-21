@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Mailbox } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -11,9 +12,32 @@ import { supabase } from '../lib/supabase'
 
 type Chat = {
   id: string
-  name: string
+  itemTitle: string
+  itemImageUrl: string | null
+  partnerName: string
   preview: string
   time: string
+}
+
+type Item = {
+  id: string
+  title: string | null
+  image_urls: string[] | null
+}
+
+type Profile = {
+  id: string
+  name: string | null
+  avatar_url: string | null
+}
+
+type ConversationRow = {
+  id: string
+  buyer_id: string
+  seller_id: string
+  item: Item | null
+  buyer: Profile | null
+  seller: Profile | null
 }
 
 function formatTime(value: string) {
@@ -47,39 +71,55 @@ export default function MessagesPage() {
     const load = async () => {
       setIsLoading(true)
       const { data: conversations } = await (supabase.from('conversations') as any)
-        .select('id, buyer_id, seller_id')
+        .select(
+          'id, buyer_id, seller_id, item:items(id, title, image_urls), buyer:profiles!conversations_buyer_id_fkey(id, name, avatar_url), seller:profiles!conversations_seller_id_fkey(id, name, avatar_url)'
+        )
         .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
         .order('created_at', { ascending: false })
 
-      const rows = (conversations ?? []) as Array<{
-        id: string
-        buyer_id: string
-        seller_id: string
-      }>
+      const rows = (conversations ?? []) as ConversationRow[]
+      const conversationIds = rows.map((row) => row.id)
 
-      const mapped = await Promise.all(
-        rows.map(async (conversation) => {
-          const partnerId =
-            conversation.buyer_id === user.id ? conversation.seller_id : conversation.buyer_id
+      const { data: recentMessages } = conversationIds.length
+        ? await (supabase.from('messages') as any)
+            .select('conversation_id, text, created_at')
+            .in('conversation_id', conversationIds)
+            .order('created_at', { ascending: false })
+        : { data: [] }
 
-          const [{ data: profile }, { data: lastMessage }] = await Promise.all([
-            supabase.from('profiles').select('name').eq('id', partnerId).maybeSingle(),
-            (supabase.from('messages') as any)
-              .select('text, created_at')
-              .eq('conversation_id', conversation.id)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle(),
-          ])
+      const lastMessageByConversation = new Map<
+        string,
+        { text: string | null; created_at: string | null }
+      >()
+      for (const message of (recentMessages ?? []) as Array<{
+        conversation_id: string
+        text: string | null
+        created_at: string | null
+      }>) {
+        if (!lastMessageByConversation.has(message.conversation_id)) {
+          lastMessageByConversation.set(message.conversation_id, {
+            text: message.text,
+            created_at: message.created_at,
+          })
+        }
+      }
 
-          return {
-            id: conversation.id,
-            name: (profile as { name?: string } | null)?.name || 'Пользователь',
-            preview: lastMessage?.text || 'Новый диалог',
-            time: lastMessage?.created_at ? formatTime(lastMessage.created_at) : '',
-          }
-        })
-      )
+      const mapped = rows.map((conversation) => {
+        const isBuyer = conversation.buyer_id === user.id
+        const partner = isBuyer ? conversation.seller : conversation.buyer
+        const item = conversation.item
+        const itemImageUrl = item?.image_urls?.[0] ?? null
+        const lastMessage = lastMessageByConversation.get(conversation.id)
+
+        return {
+          id: conversation.id,
+          itemTitle: item?.title?.trim() || 'Товар удален',
+          itemImageUrl,
+          partnerName: partner?.name?.trim() || 'Пользователь',
+          preview: lastMessage?.text?.trim() || 'Новый диалог',
+          time: lastMessage?.created_at ? formatTime(lastMessage.created_at) : '',
+        }
+      })
 
       if (active) {
         setChats(mapped)
@@ -120,15 +160,28 @@ export default function MessagesPage() {
               {chats.map((chat) => (
                 <li key={chat.id}>
                   <Link href={`/messages/${chat.id}`} className="flex items-center gap-4 px-4 py-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700">
-                      {chat.name.slice(0, 2).toUpperCase()}
+                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-200">
+                      {chat.itemImageUrl ? (
+                        <Image
+                          src={chat.itemImageUrl}
+                          alt={chat.itemTitle}
+                          fill
+                          sizes="56px"
+                          className="object-cover"
+                          unoptimized
+                        />
+                      ) : null}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="truncate text-base font-semibold text-slate-950">{chat.name}</p>
+                        <p className="truncate text-base font-semibold text-slate-950">
+                          {chat.itemTitle}
+                        </p>
                         <span className="shrink-0 text-xs text-slate-500">{chat.time}</span>
                       </div>
-                      <p className="truncate text-sm text-slate-500">{chat.preview}</p>
+                      <p className="truncate text-sm text-slate-500">
+                        {chat.partnerName}: {chat.preview}
+                      </p>
                     </div>
                   </Link>
                 </li>
