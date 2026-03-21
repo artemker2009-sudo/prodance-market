@@ -22,13 +22,6 @@ type Item = {
   gender: string | null
   category: string | null
   description: string | null
-  profiles?: {
-    id: string
-    name: string | null
-    avatar_url: string | null
-    city: string | null
-    created_at: string
-  } | null
 }
 
 type SellerProfile = {
@@ -72,32 +65,30 @@ export default async function ItemPage({ params }: ItemPageProps) {
   const { id } = await params
   const supabase = await createSupabaseServerClient()
 
-  const { data, error } = await (supabase.from('items') as any)
-    .select('*, profiles!items_seller_id_fkey(*)')
+  const { data: item, error: itemError } = await (supabase.from('items') as any)
+    .select('*')
     .eq('id', id)
     .single()
 
-  if (error) {
-    if (error.code === 'PGRST116') {
+  if (itemError) {
+    if (itemError.code === 'PGRST116') {
       notFound()
     }
-    throw new Error(error.message)
+    throw new Error(itemError.message)
   }
 
-  const item = data as Item
-  let sellerProfile = item.profiles ?? null
-
-  if (!sellerProfile && item.seller_id) {
-    const { data: fallbackProfile, error: fallbackError } = await (supabase.from('profiles') as any)
-      .select('id, name, avatar_url, city, created_at')
+  let sellerProfile: SellerProfile | null = null
+  if (item?.seller_id) {
+    const { data: seller, error: sellerError } = await (supabase.from('profiles') as any)
+      .select('*')
       .eq('id', item.seller_id)
-      .maybeSingle()
+      .single()
 
-    if (fallbackError) {
-      throw new Error(fallbackError.message)
+    if (sellerError && sellerError.code !== 'PGRST116') {
+      throw new Error(sellerError.message)
     }
 
-    sellerProfile = (fallbackProfile as SellerProfile | null) ?? null
+    sellerProfile = (seller as SellerProfile | null) ?? null
   }
 
   const sellerName = sellerProfile?.name?.trim() || 'Продавец'

@@ -140,6 +140,17 @@ export default function ProfileSettingsPage() {
         throw updateError
       }
 
+      const { error: profileUpsertError } = await supabase.from('profiles').upsert({
+        id: user.id,
+        name: name.trim(),
+        city: city.trim(),
+        avatar_url: avatarPreviewUrl || null,
+      })
+
+      if (profileUpsertError) {
+        throw profileUpsertError
+      }
+
       setPassword('')
       setSuccess(nextPassword ? 'Данные и пароль сохранены' : 'Данные профиля сохранены')
     } catch (submitError) {
