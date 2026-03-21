@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowLeft, PackageOpen } from 'lucide-react'
+import { PackageOpen } from 'lucide-react'
 
 import { createSupabaseServerClient } from '../../lib/supabase-server'
 import { PremiumItemCard } from '../../profile/components/PremiumItemCard'
@@ -34,28 +34,37 @@ function isActiveStatus(status: string | null | undefined) {
 
 function formatProjectDate(dateValue: string | null | undefined) {
   if (!dateValue) {
-    return 'недавно'
+    return 'Недавно'
   }
 
   const date = new Date(dateValue)
   if (Number.isNaN(date.getTime())) {
-    return 'недавно'
+    return 'Недавно'
   }
 
-  return new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' }).format(date)
+  const month = new Intl.DateTimeFormat('ru-RU', { month: 'long' }).format(date)
+  const year = new Intl.DateTimeFormat('ru-RU', { year: 'numeric' }).format(date)
+  const normalizedMonth = month.charAt(0).toUpperCase() + month.slice(1)
+
+  return `${normalizedMonth} ${year}`
 }
 
 export default async function PublicUserPage({ params }: UserPageProps) {
-  const { id } = await params
+  const routeParams = await params
+  const { id } = routeParams
   const supabase = await createSupabaseServerClient()
 
-  const [{ data: profile }, { data: rawItems, error: itemsError }] = await Promise.all([
-    (supabase.from('profiles') as any).select('id, name, avatar_url, city, created_at').eq('id', id).maybeSingle(),
+  const [{ data: profile, error: profileError }, { data: rawItems, error: itemsError }] = await Promise.all([
+    (supabase.from('profiles') as any).select('*').eq('id', routeParams.id).single(),
     (supabase.from('items') as any)
       .select('id, title, price, image_urls, status')
       .eq('seller_id', id)
       .order('created_at', { ascending: false }),
   ])
+
+  if (profileError) {
+    throw new Error(profileError.message)
+  }
 
   if (itemsError) {
     throw new Error(itemsError.message)
@@ -89,16 +98,16 @@ export default async function PublicUserPage({ params }: UserPageProps) {
                   alt={profileName}
                   width={112}
                   height={112}
-                  className="h-28 w-28 object-cover"
+                  className="h-28 w-28 rounded-full object-cover"
                   unoptimized
                 />
               ) : (
-                <span>{avatarLetter || 'П'}</span>
+                <span className="text-4xl">{avatarLetter || 'П'}</span>
               )}
             </div>
             <h1 className="mt-4 text-2xl font-bold text-slate-950">{profileName}</h1>
             {city ? <p className="mt-1 text-sm text-slate-500">{city}</p> : null}
-            <p className="mt-1 text-sm text-slate-500">На проекте с {projectDate}</p>
+            <p className="mt-1 text-sm text-slate-500">На ProDance с {projectDate}</p>
           </div>
         </header>
 
