@@ -16,6 +16,17 @@ if (!supabaseAnonKey) {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const hasAdminToken = request.cookies.get('admin_token')?.value === 'true'
+
+  if (pathname.startsWith('/admin')) {
+    if (!hasAdminToken && pathname !== '/admin') {
+      return NextResponse.redirect(new URL('/admin', request.url))
+    }
+
+    if (hasAdminToken && pathname === '/admin/login') {
+      return NextResponse.redirect(new URL('/admin', request.url))
+    }
+  }
 
   let response = NextResponse.next({
     request,

@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import { Manrope } from 'next/font/google'
 
+import { AppShell } from './components/AppShell'
 import { AuthProvider } from './components/AuthProvider'
-import { BottomNav } from './components/BottomNav'
 import { createSupabaseServerClient } from './lib/supabase-server'
 import './globals.css'
 
@@ -32,10 +32,7 @@ export default async function RootLayout({
         className={`${manrope.variable} min-h-screen bg-neutral-50 font-sans text-neutral-950 antialiased`}
       >
         <AuthProvider initialSession={session}>
-          <div className="max-w-[480px] mx-auto min-h-screen bg-white shadow-xl">
-            <div className="min-h-screen pb-20 md:pb-0">{children}</div>
-            <BottomNav />
-          </div>
+          <AppShell>{children}</AppShell>
         </AuthProvider>
       </body>
     </html>

@@ -1,175 +1,70 @@
-'use client'
+import { BarChart3, FileText, LifeBuoy, Users } from 'lucide-react'
 
-import { useState, type FormEvent } from 'react'
+import { supabaseAdmin } from '../lib/supabase-admin'
 
-import {
-  approveProduct,
-  getPendingProducts,
-  rejectProduct,
-} from '../actions/admin'
-import type { Product } from '../lib/types'
+export default async function AdminDashboardPage() {
+  const [profilesResult, itemsResult, supportResult] = await Promise.all([
+    (supabaseAdmin.from('profiles') as any).select('*', { count: 'exact', head: true }),
+    (supabaseAdmin.from('items') as any).select('*', { count: 'exact', head: true }),
+    (supabaseAdmin.from('support_tickets') as any).select('*', { count: 'exact', head: true }),
+  ])
 
-export default function AdminPage() {
-  const [passwordInput, setPasswordInput] = useState('')
-  const [adminPassword, setAdminPassword] = useState('')
-  const [products, setProducts] = useState<Product[]>([])
-  const [error, setError] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [actionId, setActionId] = useState<string | null>(null)
-  const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null)
+  const usersCount = profilesResult.count ?? 0
+  const itemsCount = itemsResult.count ?? 0
+  const ticketsCount = supportResult.count ?? 0
 
-  const loadProducts = async (password: string) => {
-    setIsLoading(true)
-    setError('')
-
-    try {
-      const nextProducts = await getPendingProducts(password)
-      setProducts(nextProducts)
-      setAdminPassword(password)
-    } catch (loadError) {
-      setAdminPassword('')
-      setProducts([])
-      setError(loadError instanceof Error ? loadError.message : 'Ошибка загрузки')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    await loadProducts(passwordInput)
-  }
-
-  const handleAction = async (id: string, type: 'approve' | 'reject') => {
-    setActionId(id)
-    setActionType(type)
-    setError('')
-
-    try {
-      if (type === 'approve') {
-        await approveProduct(id, adminPassword)
-      } else {
-        await rejectProduct(id, adminPassword)
-      }
-
-      const nextProducts = await getPendingProducts(adminPassword)
-      setProducts(nextProducts)
-    } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'Ошибка действия')
-    } finally {
-      setActionId(null)
-      setActionType(null)
-    }
-  }
-
-  if (!adminPassword) {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-4 pb-28 md:pb-0">
-        <form
-          onSubmit={handleLogin}
-          className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-sm"
-        >
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold">Админ-панель</h1>
-            <p className="text-sm text-neutral-500">Вход по мастер-паролю</p>
-          </div>
-
-          <input
-            type="password"
-            placeholder="Пароль"
-            value={passwordInput}
-            onChange={(event) => setPasswordInput(event.target.value)}
-            className="w-full rounded-xl border border-neutral-200 px-4 py-3 outline-none"
-            required
-          />
-
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full rounded-xl bg-black px-4 py-3 text-white disabled:opacity-60"
-          >
-            {isLoading ? 'Входим...' : 'Войти'}
-          </button>
-        </form>
-      </main>
-    )
-  }
+  const stats = [
+    {
+      label: 'Пользователи',
+      value: usersCount,
+      note: 'Всего зарегистрировано',
+      icon: Users,
+    },
+    {
+      label: 'Активные объявления',
+      value: itemsCount,
+      note: 'Текущие карточки товаров',
+      icon: FileText,
+    },
+    {
+      label: 'Открытые тикеты',
+      value: ticketsCount,
+      note: 'Ожидают ответа поддержки',
+      icon: LifeBuoy,
+    },
+  ]
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-10 pb-28 md:pb-10">
-      <div className="mb-6 space-y-1">
-        <h1 className="text-3xl font-semibold">Модерация товаров</h1>
-        <p className="text-sm text-neutral-500">Неодобренные объявления</p>
+    <div>
+      <div className="mb-8 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-400">Overview</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Дашборд</h1>
+        </div>
+        <div className="hidden items-center gap-2 rounded-2xl bg-[#faf7f3] px-4 py-2 text-sm text-slate-500 md:flex">
+          <BarChart3 className="h-4 w-4" />
+          Обновляется в реальном времени
+        </div>
       </div>
 
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
-
-      {isLoading ? (
-        <p className="text-sm text-neutral-500">Загрузка...</p>
-      ) : !products.length ? (
-        <p className="text-sm text-neutral-500">Нет товаров на модерации</p>
-      ) : (
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {products.map((product) => {
-            const isProcessing = actionId === product.id
-
-            return (
-              <article
-                key={product.id}
-                className="overflow-hidden rounded-2xl bg-white shadow-sm"
-              >
-                {product.image_url ? (
-                  <img
-                    src={product.image_url}
-                    alt={product.title}
-                    className="h-64 w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-64 items-center justify-center bg-neutral-100 text-sm text-neutral-400">
-                    Нет фото
-                  </div>
-                )}
-
-                <div className="space-y-3 p-4">
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-medium">{product.title}</h2>
-                    <p className="text-sm text-neutral-500">{product.price} ₽</p>
-                    <p className="text-sm text-neutral-600">
-                      {product.description || 'Без описания'}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleAction(product.id, 'approve')}
-                      disabled={isProcessing}
-                      className="flex-1 rounded-xl bg-black px-4 py-3 text-white disabled:opacity-60"
-                    >
-                      {isProcessing && actionType === 'approve'
-                        ? 'Одобряем...'
-                        : 'Одобрить'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleAction(product.id, 'reject')}
-                      disabled={isProcessing}
-                      className="flex-1 rounded-xl border border-red-200 px-4 py-3 text-red-600 disabled:opacity-60"
-                    >
-                      {isProcessing && actionType === 'reject'
-                        ? 'Отклоняем...'
-                        : 'Отклонить'}
-                    </button>
-                  </div>
-                </div>
-              </article>
-            )
-          })}
-        </section>
-      )}
-    </main>
+      <section className="grid gap-4 md:grid-cols-3">
+        {stats.map((card) => {
+          const Icon = card.icon
+          return (
+            <article
+              key={card.label}
+              className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-[0_14px_40px_rgba(15,23,42,0.08)]"
+            >
+              <div className="mb-6 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#faf7f3] text-slate-700">
+                <Icon className="h-5 w-5" />
+              </div>
+              <p className="text-sm font-medium text-slate-500">{card.label}</p>
+              <p className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">{card.value}</p>
+              <p className="mt-3 text-sm text-slate-500">{card.note}</p>
+            </article>
+          )
+        })}
+      </section>
+    </div>
   )
 }
