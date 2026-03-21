@@ -52,6 +52,9 @@ export default async function PublicUserPage({ params }: UserPageProps) {
   const routeParams = await params
   const { id } = routeParams
   const supabase = await createSupabaseServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   const [{ data: profile, error: profileError }, { data: rawItems, error: itemsError }] = await Promise.all([
     (supabase.from('profiles') as any).select('*').eq('id', routeParams.id).single(),
@@ -70,6 +73,23 @@ export default async function PublicUserPage({ params }: UserPageProps) {
   }
 
   const items = ((rawItems ?? []) as Item[]).filter((item) => isActiveStatus(item.status))
+  const favoriteIds = new Set<string>()
+
+  if (user?.id && items.length) {
+    const { data: favoriteRows } = await (supabase.from('favorites') as any)
+      .select('item_id')
+      .eq('user_id', user.id)
+      .in(
+        'item_id',
+        items.map((item) => item.id)
+      )
+    for (const row of (favoriteRows ?? []) as Array<{ item_id: string | null }>) {
+      if (row.item_id) {
+        favoriteIds.add(row.item_id)
+      }
+    }
+  }
+
   const profileName = profile?.name?.trim() || 'Пользователь'
   const city = profile?.city?.trim() || null
   const projectDate = formatProjectDate(profile?.created_at)
@@ -110,7 +130,12 @@ export default async function PublicUserPage({ params }: UserPageProps) {
           {items.length ? (
             <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
               {items.map((item) => (
-                <PremiumItemCard key={item.id} item={item} href={`/item/${item.id}`} />
+                <PremiumItemCard
+                  key={item.id}
+                  item={item}
+                  href={`/item/${item.id}`}
+                  initialIsFavorite={favoriteIds.has(item.id)}
+                />
               ))}
             </div>
           ) : (

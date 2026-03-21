@@ -196,6 +196,7 @@ export default function FavoritesPage() {
                     type="button"
                     onClick={(event) => {
                       event.preventDefault()
+                      event.stopPropagation()
                       handleRemoveFromFavorites(item.id)
                     }}
                     disabled={removingId === item.id}

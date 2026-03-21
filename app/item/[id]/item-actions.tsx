@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, type MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { Heart, Loader2 } from 'lucide-react'
 
@@ -10,45 +10,27 @@ import { supabase } from '../../lib/supabase'
 
 type FavoriteToggleProps = {
   itemId: string
+  initialIsFavorite?: boolean
   className?: string
   iconClassName?: string
 }
 
-export function FavoriteToggle({ itemId, className, iconClassName }: FavoriteToggleProps) {
+export function FavoriteToggle({
+  itemId,
+  initialIsFavorite = false,
+  className,
+  iconClassName,
+}: FavoriteToggleProps) {
   const router = useRouter()
   const { session } = useAuth()
   const userId = session?.user?.id ?? null
-  const [isFavorite, setIsFavorite] = useState(false)
+  const [isFavorite, setIsFavorite] = useState(initialIsFavorite)
   const [isLoading, setIsLoading] = useState(false)
 
-  useEffect(() => {
-    if (!userId) {
-      setIsFavorite(false)
-      return
-    }
+  const handleToggle = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
 
-    let active = true
-
-    const loadFavorite = async () => {
-      const { data } = await (supabase.from('favorites') as any)
-        .select('id')
-        .eq('user_id', userId)
-        .eq('item_id', itemId)
-        .maybeSingle()
-
-      if (active) {
-        setIsFavorite(Boolean(data))
-      }
-    }
-
-    void loadFavorite()
-
-    return () => {
-      active = false
-    }
-  }, [itemId, userId])
-
-  const handleToggle = async () => {
     if (!userId) {
       router.push(buildLoginRedirectHref(`/item/${itemId}`))
       return

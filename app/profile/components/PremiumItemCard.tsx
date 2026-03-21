@@ -32,29 +32,26 @@ function ProductPlaceholder() {
 export function PremiumItemCard({
   item,
   href,
+  initialIsFavorite = false,
   topRight,
 }: {
   item: PremiumItem
   href?: string
+  initialIsFavorite?: boolean
   topRight?: ReactNode
 }) {
   const previewImage = item.image_urls?.[0] ?? null
   const favoriteControl = topRight ?? (
-    <div
-      className="inline-flex rounded-full border border-white/50 bg-white/50 p-0.5 shadow-sm backdrop-blur-md"
-      onClick={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-      }}
-    >
+    <div className="inline-flex rounded-full border border-white/50 bg-white/50 p-0.5 shadow-sm backdrop-blur-md">
       <FavoriteToggle
         itemId={item.id}
+        initialIsFavorite={initialIsFavorite}
         className="h-9 w-9 border-transparent bg-transparent text-slate-500 hover:bg-white/30"
         iconClassName="h-4 w-4"
       />
     </div>
   )
-  const content = (
+  const cardBody = (
     <article className="flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
       <div className="relative">
         {previewImage ? (
@@ -71,7 +68,6 @@ export function PremiumItemCard({
         ) : (
           <ProductPlaceholder />
         )}
-        <div className="absolute right-2 top-2 z-10">{favoriteControl}</div>
       </div>
 
       <div className="flex min-h-[74px] flex-col px-3 pb-4 pt-3 sm:px-4">
@@ -84,15 +80,23 @@ export function PremiumItemCard({
   )
 
   if (!href) {
-    return content
+    return (
+      <div className="relative">
+        {cardBody}
+        <div className="absolute right-2 top-2 z-10">{favoriteControl}</div>
+      </div>
+    )
   }
 
   return (
-    <Link
-      href={href}
-      className="block rounded-[1.5rem] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15 focus-visible:ring-offset-2"
-    >
-      {content}
-    </Link>
+    <div className="relative">
+      <Link
+        href={href}
+        className="block rounded-[1.5rem] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15 focus-visible:ring-offset-2"
+      >
+        {cardBody}
+      </Link>
+      <div className="absolute right-2 top-2 z-10">{favoriteControl}</div>
+    </div>
   )
 }

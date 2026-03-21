@@ -109,6 +109,9 @@ function ProductImagePlaceholder() {
 export default async function ItemPage({ params }: ItemPageProps) {
   const { id } = await params
   const supabase = await createSupabaseServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   const { data: item, error: itemError } = await (supabase.from('items') as any)
     .select('*')
@@ -142,6 +145,17 @@ export default async function ItemPage({ params }: ItemPageProps) {
   const sellerAvatarLetter = sellerName.charAt(0).toUpperCase()
   const sellerProfileHref = item.seller_id ? `/user/${item.seller_id}` : '#'
   const publishedRelative = formatRelativeTime(item.created_at)
+  let initialIsFavorite = false
+
+  if (user?.id) {
+    const { data: favoriteRow } = await (supabase.from('favorites') as any)
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('item_id', item.id)
+      .maybeSingle()
+    initialIsFavorite = Boolean(favoriteRow)
+  }
+
   const specs = [
     { label: 'Размер', value: item.size || 'Не указан' },
     { label: 'Категория', value: item.category || 'Не указана' },
@@ -171,7 +185,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
       <section className="relative z-10 -mt-6 rounded-t-3xl bg-white px-4 pb-8 pt-6 shadow-[0_-10px_30px_-20px_rgba(15,23,42,0.18)]">
         <div className="flex items-center justify-between gap-3">
           <p className="text-3xl font-bold text-slate-900">{formatPrice(item.price)} ₽</p>
-          <FavoriteToggle itemId={item.id} />
+          <FavoriteToggle itemId={item.id} initialIsFavorite={initialIsFavorite} />
         </div>
         <h1 className="mt-1 text-lg text-slate-700">{item.title}</h1>
 

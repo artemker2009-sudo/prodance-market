@@ -31,58 +31,80 @@ function ProductPlaceholder() {
   )
 }
 
-function ProductCard({ item }: { item: Item }) {
+function ProductCard({
+  item,
+  initialIsFavorite,
+}: {
+  item: Item
+  initialIsFavorite: boolean
+}) {
   const previewImage = item.image_urls?.[0] ?? null
 
   return (
-    <article className="flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
-      <div className="relative">
-        {previewImage ? (
-          <div className="relative aspect-[3/4] w-full bg-slate-100">
-            <Image
-              src={previewImage}
-              alt={item.title}
-              fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-cover"
-              unoptimized
-            />
+    <div className="relative">
+      <Link
+        href={`/item/${item.id}`}
+        className="block rounded-[1.5rem] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15 focus-visible:ring-offset-2"
+      >
+        <article className="flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
+          <div className="relative">
+            {previewImage ? (
+              <div className="relative aspect-[3/4] w-full bg-slate-100">
+                <Image
+                  src={previewImage}
+                  alt={item.title}
+                  fill
+                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                  className="object-cover"
+                  unoptimized
+                />
+              </div>
+            ) : (
+              <ProductPlaceholder />
+            )}
           </div>
-        ) : (
-          <ProductPlaceholder />
-        )}
-        <div className="absolute right-2 top-2 z-10">
-          <div
-            className="inline-flex rounded-full border border-white/50 bg-white/50 p-0.5 shadow-sm backdrop-blur-md"
-            onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-            }}
-          >
-            <FavoriteToggle
-              itemId={item.id}
-              className="h-9 w-9 border-transparent bg-transparent text-slate-500 hover:bg-white/30"
-              iconClassName="h-4 w-4"
-            />
+          <div className="flex min-h-[74px] flex-col px-3 pb-4 pt-3 sm:px-4">
+            <p className="text-lg font-bold text-gray-900">{formatPrice(item.price)} ₽</p>
+            <h2 className="mt-1 truncate text-sm font-semibold leading-5 text-gray-800 sm:text-base">
+              {item.title}
+            </h2>
           </div>
+        </article>
+      </Link>
+      <div className="absolute right-2 top-2 z-10">
+        <div className="inline-flex rounded-full border border-white/50 bg-white/50 p-0.5 shadow-sm backdrop-blur-md">
+          <FavoriteToggle
+            itemId={item.id}
+            initialIsFavorite={initialIsFavorite}
+            className="h-9 w-9 border-transparent bg-transparent text-slate-500 hover:bg-white/30"
+            iconClassName="h-4 w-4"
+          />
         </div>
       </div>
-
-      <div className="flex min-h-[74px] flex-col px-3 pb-4 pt-3 sm:px-4">
-        <p className="text-lg font-bold text-gray-900">{formatPrice(item.price)} ₽</p>
-        <h2 className="mt-1 truncate text-sm font-semibold leading-5 text-gray-800 sm:text-base">
-          {item.title}
-        </h2>
-      </div>
-    </article>
+    </div>
   )
 }
 
 export default async function HomePage() {
   const supabase = await createSupabaseServerClient()
-  const { data, error } = await (supabase.from('items') as any)
-    .select('*')
-    .order('created_at', { ascending: false })
+  const [{ data: authData }, { data, error }] = await Promise.all([
+    supabase.auth.getUser(),
+    (supabase.from('items') as any).select('*').order('created_at', { ascending: false }),
+  ])
+  const userId = authData.user?.id ?? null
+  const favoriteIds = new Set<string>()
+
+  if (userId) {
+    const { data: favoritesRows } = await (supabase.from('favorites') as any)
+      .select('item_id')
+      .eq('user_id', userId)
+    for (const row of (favoritesRows ?? []) as Array<{ item_id: string | null }>) {
+      if (row.item_id) {
+        favoriteIds.add(row.item_id)
+      }
+    }
+  }
+
   const items = (data ?? []) as Item[]
 
   return (
@@ -135,13 +157,11 @@ export default async function HomePage() {
           ) : (
             <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
               {items.map((item) => (
-                <Link
+                <ProductCard
                   key={item.id}
-                  href={`/item/${item.id}`}
-                  className="block rounded-[1.5rem] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15 focus-visible:ring-offset-2"
-                >
-                  <ProductCard item={item} />
-                </Link>
+                  item={item}
+                  initialIsFavorite={favoriteIds.has(item.id)}
+                />
               ))}
             </section>
           )}

@@ -350,7 +350,12 @@ export default function ProfilePage() {
             ) : favoriteItems.length ? (
               <div className="grid grid-cols-2 gap-3">
                 {favoriteItems.map((item) => (
-                  <PremiumItemCard key={item.id} item={item} href={`/item/${item.id}`} />
+                  <PremiumItemCard
+                    key={item.id}
+                    item={item}
+                    href={`/item/${item.id}`}
+                    initialIsFavorite
+                  />
                 ))}
               </div>
             ) : (
