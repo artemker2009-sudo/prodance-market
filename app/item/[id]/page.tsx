@@ -93,6 +93,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
 
   const sellerName = sellerProfile?.name?.trim() || 'Продавец'
   const registrationYear = getRegistrationYear(sellerProfile?.created_at)
+  const sellerAvatarUrl = sellerProfile?.avatar_url?.trim() || null
   const sellerAvatarLetter = sellerName.charAt(0).toUpperCase()
   const sellerProfileHref = item.seller_id ? `/user/${item.seller_id}` : '#'
   const specs = [
@@ -173,13 +174,13 @@ export default async function ItemPage({ params }: ItemPageProps) {
           className="mt-5 flex items-center gap-4 rounded-2xl bg-white p-4 shadow-[0_8px_24px_-18px_rgba(15,23,42,0.5)] transition hover:shadow-[0_14px_34px_-20px_rgba(15,23,42,0.45)]"
         >
           <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-lg font-semibold text-slate-700">
-            {sellerProfile?.avatar_url ? (
+            {sellerAvatarUrl ? (
               <Image
-                src={sellerProfile.avatar_url}
+                src={sellerAvatarUrl}
                 alt={sellerName}
                 width={56}
                 height={56}
-                className="h-14 w-14 object-cover"
+                className="h-14 w-14 rounded-full object-cover"
                 unoptimized
               />
             ) : (

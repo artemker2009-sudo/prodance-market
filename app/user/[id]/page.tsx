@@ -74,6 +74,7 @@ export default async function PublicUserPage({ params }: UserPageProps) {
   const profileName = profile?.name?.trim() || 'Пользователь'
   const city = profile?.city?.trim() || null
   const projectDate = formatProjectDate(profile?.created_at)
+  const profileAvatarUrl = profile?.avatar_url?.trim() || null
   const avatarLetter = profileName.charAt(0).toUpperCase()
 
   return (
@@ -92,13 +93,14 @@ export default async function PublicUserPage({ params }: UserPageProps) {
 
           <div className="mt-4 flex flex-col items-center text-center">
             <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-3xl font-semibold text-slate-700">
-              {profile?.avatar_url ? (
+              {profileAvatarUrl ? (
                 <Image
-                  src={profile.avatar_url}
+                  src={profileAvatarUrl}
                   alt={profileName}
                   width={112}
                   height={112}
                   className="h-28 w-28 rounded-full object-cover"
+                  priority
                   unoptimized
                 />
               ) : (
