@@ -11,7 +11,8 @@ type ItemImageGalleryProps = {
 
 export function ItemImageGallery({ imageUrls, title }: ItemImageGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0)
-  const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null)
+  const [fullscreenIndex, setFullscreenIndex] = useState(0)
+  const [isFullscreenOpen, setIsFullscreenOpen] = useState(false)
 
   const hasImages = imageUrls.length > 0
   const safeActiveIndex = useMemo(() => {
@@ -51,7 +52,10 @@ export function ItemImageGallery({ imageUrls, title }: ItemImageGalleryProps) {
             <button
               type="button"
               key={url + index}
-              onClick={() => setFullscreenIndex(index)}
+              onClick={() => {
+                setFullscreenIndex(index)
+                setIsFullscreenOpen(true)
+              }}
               className="relative aspect-[3/4] min-w-full snap-center bg-slate-100"
               aria-label={`Открыть фото ${index + 1} на весь экран`}
             >
@@ -67,24 +71,24 @@ export function ItemImageGallery({ imageUrls, title }: ItemImageGalleryProps) {
           ))}
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/20 px-2 py-1 backdrop-blur-sm">
+        <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/30 px-3 py-1.5 backdrop-blur-sm">
           {imageUrls.map((_, index) => (
             <span
               key={`dot-${index}`}
-              className={`h-1.5 w-1.5 rounded-full transition-all ${
-                index === safeActiveIndex ? 'bg-slate-900' : 'bg-slate-300/80'
+              className={`h-3 w-3 rounded-full transition-all ${
+                index === safeActiveIndex ? 'bg-white' : 'bg-white/45'
               }`}
             />
           ))}
         </div>
       </div>
 
-      {fullscreenIndex !== null ? (
+      {isFullscreenOpen ? (
         <div className="fixed inset-0 z-[100] bg-black/95">
           <button
             type="button"
-            onClick={() => setFullscreenIndex(null)}
-            className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+            onClick={() => setIsFullscreenOpen(false)}
+            className="absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
             aria-label="Закрыть полноэкранный просмотр"
           >
             <X className="h-5 w-5" />

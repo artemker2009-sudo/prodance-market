@@ -1,9 +1,8 @@
-import Link from 'next/link'
-import Image from 'next/image'
 import { PackageOpen } from 'lucide-react'
 
 import { createSupabaseServerClient } from '../../lib/supabase-server'
 import { PremiumItemCard } from '../../profile/components/PremiumItemCard'
+import { BackButton } from './back-button'
 
 type UserPageProps = {
   params: Promise<{
@@ -82,26 +81,19 @@ export default async function PublicUserPage({ params }: UserPageProps) {
       <div className="mx-auto w-full max-w-5xl">
         <header className="rounded-[2rem] border border-slate-200/70 bg-white px-5 py-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <Link
-              href="/"
-              className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm"
-            >
+            <BackButton className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm">
               Назад
-            </Link>
+            </BackButton>
             <div className="w-[84px]" />
           </div>
 
           <div className="mt-4 flex flex-col items-center text-center">
             <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-3xl font-semibold text-slate-700">
               {profileAvatarUrl ? (
-                <Image
+                <img
                   src={profileAvatarUrl}
                   alt={profileName}
-                  width={112}
-                  height={112}
                   className="h-28 w-28 rounded-full object-cover"
-                  priority
-                  unoptimized
                 />
               ) : (
                 <span className="text-4xl">{avatarLetter || 'П'}</span>

@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 
@@ -201,13 +200,10 @@ export default async function ItemPage({ params }: ItemPageProps) {
         >
           <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-lg font-semibold text-slate-700">
             {sellerAvatarUrl ? (
-              <Image
+              <img
                 src={sellerAvatarUrl}
                 alt={sellerName}
-                width={56}
-                height={56}
                 className="h-14 w-14 rounded-full object-cover"
-                unoptimized
               />
             ) : (
               <span>{sellerAvatarLetter || 'П'}</span>
