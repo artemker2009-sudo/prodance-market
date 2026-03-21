@@ -71,11 +71,11 @@ export function ItemImageGallery({ imageUrls, title }: ItemImageGalleryProps) {
           ))}
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/30 px-3 py-1.5 backdrop-blur-sm">
+        <div className="pointer-events-none absolute bottom-12 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/30 px-3 py-1.5 backdrop-blur-sm">
           {imageUrls.map((_, index) => (
             <span
               key={`dot-${index}`}
-              className={`h-3 w-3 rounded-full transition-all ${
+              className={`h-2 w-2 rounded-full transition-all ${
                 index === safeActiveIndex ? 'bg-white' : 'bg-white/45'
               }`}
             />
