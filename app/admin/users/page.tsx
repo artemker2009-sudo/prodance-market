@@ -72,7 +72,7 @@ export default function AdminUsersPage() {
     setDeletingId(user.id)
     setError('')
 
-    const { error: deleteError } = await (supabase.rpc('delete_user_by_admin', {
+    const { error: deleteError } = await ((supabase as any).rpc('delete_user_by_admin', {
       target_uid: user.id,
     }) as any)
 
