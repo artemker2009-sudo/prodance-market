@@ -140,7 +140,7 @@ export default function ProfileSettingsPage() {
         throw updateError
       }
 
-      const { error: profileUpsertError } = await supabase.from('profiles').upsert({
+      const { error: profileUpsertError } = await (supabase.from('profiles') as any).upsert({
         id: user.id,
         name: name.trim(),
         city: city.trim(),
