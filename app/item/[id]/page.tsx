@@ -1,10 +1,11 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Camera } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 
 import { createSupabaseServerClient } from '../../lib/supabase-server'
 import { FavoriteToggle, StartConversationButton } from './item-actions'
+import { ItemImageGallery } from './item-image-gallery'
 
 type ItemPageProps = {
   params: Promise<{
@@ -17,6 +18,7 @@ type Item = {
   title: string
   price: number
   image_urls: string[] | null
+  created_at: string | null
   seller_id: string | null
   size: string | null
   gender: string | null
@@ -47,6 +49,50 @@ function getRegistrationYear(dateValue: string | null | undefined) {
   }
 
   return date.getFullYear()
+}
+
+function formatRelativeTime(dateValue: string | null | undefined) {
+  if (!dateValue) {
+    return 'недавно'
+  }
+
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) {
+    return 'недавно'
+  }
+
+  const now = new Date()
+  const diffMs = date.getTime() - now.getTime()
+  const diffSeconds = Math.round(diffMs / 1000)
+  const absSeconds = Math.abs(diffSeconds)
+  const rtf = new Intl.RelativeTimeFormat('ru', { numeric: 'auto' })
+
+  if (absSeconds < 60) {
+    return rtf.format(diffSeconds, 'second')
+  }
+
+  const diffMinutes = Math.round(diffSeconds / 60)
+  if (Math.abs(diffMinutes) < 60) {
+    return rtf.format(diffMinutes, 'minute')
+  }
+
+  const diffHours = Math.round(diffMinutes / 60)
+  if (Math.abs(diffHours) < 24) {
+    return rtf.format(diffHours, 'hour')
+  }
+
+  const diffDays = Math.round(diffHours / 24)
+  if (Math.abs(diffDays) < 30) {
+    return rtf.format(diffDays, 'day')
+  }
+
+  const diffMonths = Math.round(diffDays / 30)
+  if (Math.abs(diffMonths) < 12) {
+    return rtf.format(diffMonths, 'month')
+  }
+
+  const diffYears = Math.round(diffMonths / 12)
+  return rtf.format(diffYears, 'year')
 }
 
 function ProductImagePlaceholder() {
@@ -96,6 +142,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
   const sellerAvatarUrl = sellerProfile?.avatar_url?.trim() || null
   const sellerAvatarLetter = sellerName.charAt(0).toUpperCase()
   const sellerProfileHref = item.seller_id ? `/user/${item.seller_id}` : '#'
+  const publishedRelative = formatRelativeTime(item.created_at)
   const specs = [
     { label: 'Размер', value: item.size || 'Не указан' },
     { label: 'Категория', value: item.category || 'Не указана' },
@@ -116,29 +163,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
         </header>
 
         {item.image_urls && item.image_urls.length > 0 ? (
-          <div className="relative">
-            <div
-              className="flex overflow-x-auto snap-x snap-mandatory w-full scrollbar-hide"
-              style={{ scrollbarWidth: 'none' }}
-            >
-              {item.image_urls.map((url, index) => (
-                <div key={index} className="relative min-w-full snap-center aspect-[3/4] bg-slate-100">
-                  <Image
-                    src={url}
-                    alt={`${item.title} — фото ${index + 1}`}
-                    fill
-                    sizes="(max-width: 768px) 100vw, 480px"
-                    className="object-cover"
-                    unoptimized
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="pointer-events-none absolute bottom-4 right-4 inline-flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
-              <Camera className="h-3.5 w-3.5" />
-              <span>{item.image_urls.length}</span>
-            </div>
-          </div>
+          <ItemImageGallery imageUrls={item.image_urls} title={item.title} />
         ) : (
           <ProductImagePlaceholder />
         )}
@@ -161,6 +186,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
             </span>
           ))}
         </div>
+        <p className="mt-2 text-sm text-slate-400">Опубликовано {publishedRelative}</p>
 
         <section className="mt-8">
           <h2 className="text-base font-semibold text-slate-900">Описание</h2>
