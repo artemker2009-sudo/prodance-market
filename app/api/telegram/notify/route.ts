@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     const chatId = profile?.telegram_chat_id
 
     if (chatId) {
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      const tgResponse = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -37,6 +37,26 @@ export async function POST(req: Request) {
           text: `🔔 Новое сообщение от ${senderName} по товару "${itemTitle}"\n\n💬 "${messageText}"\n\nПерейти в чат: ${siteUrl}/messages`,
         }),
       })
+
+      let tgData: { ok?: boolean; error_code?: number } = {}
+      try {
+        tgData = (await tgResponse.json()) as { ok?: boolean; error_code?: number }
+      } catch (parseError) {
+        console.error('Telegram notify parse error', parseError)
+      }
+
+      if (!tgData.ok && tgData.error_code === 403) {
+        const { error: unlinkError } = await (supabaseAdmin.from('profiles') as any)
+          .update({
+            telegram_chat_id: null,
+            notification_setup_completed: false,
+          })
+          .eq('telegram_chat_id', chatId)
+
+        if (unlinkError) {
+          console.error('Telegram notify unlink error', unlinkError)
+        }
+      }
     }
 
     return Response.json({ success: true })

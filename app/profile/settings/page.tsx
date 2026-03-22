@@ -40,6 +40,7 @@ export default function ProfileSettingsPage() {
   )
   const [notificationsError, setNotificationsError] = useState('')
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
+  const [isDisconnectingTelegram, setIsDisconnectingTelegram] = useState(false)
   const [isIOS, setIsIOS] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
 
@@ -311,6 +312,38 @@ export default function ProfileSettingsPage() {
     }
   }
 
+  const handleTelegramDisconnect = async () => {
+    if (!user || !telegramChatId) {
+      return
+    }
+
+    setNotificationsError('')
+    setIsDisconnectingTelegram(true)
+
+    try {
+      const { error: disconnectError } = await (supabase.from('profiles') as any)
+        .update({
+          telegram_chat_id: null,
+          notification_setup_completed: false,
+        })
+        .eq('id', user.id)
+
+      if (disconnectError) {
+        throw disconnectError
+      }
+
+      setTelegramChatId(null)
+    } catch (disconnectTelegramError) {
+      const message =
+        disconnectTelegramError instanceof Error
+          ? disconnectTelegramError.message
+          : 'Не удалось отключить Telegram'
+      setNotificationsError(message)
+    } finally {
+      setIsDisconnectingTelegram(false)
+    }
+  }
+
   if (loading || !user) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#faf7f3] px-4 pb-28 md:pb-0">
@@ -415,9 +448,19 @@ export default function ProfileSettingsPage() {
                   <p className="text-xs text-slate-500">Мгновенные уведомления через бота</p>
                 </div>
                 {telegramChatId ? (
-                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                    Подключено
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                      Подключено
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void handleTelegramDisconnect()}
+                      disabled={isDisconnectingTelegram}
+                      className="text-xs font-semibold text-rose-600 transition hover:text-rose-700 disabled:cursor-not-allowed disabled:text-slate-400"
+                    >
+                      {isDisconnectingTelegram ? 'Отключение...' : 'Отключить'}
+                    </button>
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center">
                     <Link
