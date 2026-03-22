@@ -41,6 +41,8 @@ export default function ProfileSettingsPage() {
   const [notificationsError, setNotificationsError] = useState('')
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
   const [isDisconnectingTelegram, setIsDisconnectingTelegram] = useState(false)
+  const [isPushSubscribed, setIsPushSubscribed] = useState(false)
+  const [isUnsubscribingPush, setIsUnsubscribingPush] = useState(false)
   const [isIOS, setIsIOS] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
 
@@ -106,7 +108,7 @@ export default function ProfileSettingsPage() {
     const loadNotificationSettings = async () => {
       try {
         const { data, error } = await (supabase.from('profiles') as any)
-          .select('telegram_chat_id')
+          .select('telegram_chat_id, push_subscriptions')
           .eq('id', user.id)
           .maybeSingle()
 
@@ -116,6 +118,7 @@ export default function ProfileSettingsPage() {
 
         if (isActive) {
           setTelegramChatId(data?.telegram_chat_id ?? null)
+          setIsPushSubscribed(Array.isArray(data?.push_subscriptions) && data.push_subscriptions.length > 0)
         }
       } catch (notificationError) {
         if (isActive) {
@@ -305,6 +308,8 @@ export default function ProfileSettingsPage() {
       if (!response.ok) {
         throw new Error('Не удалось сохранить push-подписку')
       }
+
+      setIsPushSubscribed(true)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Неизвестная ошибка'
       setNotificationsError(`Не удалось включить push-уведомления: ${message}`)
@@ -341,6 +346,44 @@ export default function ProfileSettingsPage() {
       setNotificationsError(message)
     } finally {
       setIsDisconnectingTelegram(false)
+    }
+  }
+
+  const handlePushUnsubscribe = async () => {
+    if (!user) {
+      return
+    }
+
+    setNotificationsError('')
+    setIsUnsubscribingPush(true)
+
+    try {
+      const reg = await navigator.serviceWorker.getRegistration()
+      const sub = await reg?.pushManager.getSubscription()
+
+      if (sub) {
+        await sub.unsubscribe()
+      }
+
+      const { error: updateError } = await (supabase.from('profiles') as any)
+        .update({
+          push_subscriptions: [],
+        })
+        .eq('id', user.id)
+
+      if (updateError) {
+        throw updateError
+      }
+
+      setIsPushSubscribed(false)
+    } catch (unsubscribeError) {
+      const message =
+        unsubscribeError instanceof Error
+          ? unsubscribeError.message
+          : 'Не удалось отключить push-уведомления'
+      setNotificationsError(message)
+    } finally {
+      setIsUnsubscribingPush(false)
     }
   }
 
@@ -472,12 +515,12 @@ export default function ProfileSettingsPage() {
                       <Send className="h-3.5 w-3.5" />
                       Подключить Telegram
                     </Link>
-                    <p className="mt-2 max-w-[220px] text-center text-xs text-slate-400">
-                      Из-за ограничений провайдеров Telegram может работать нестабильно или требовать VPN.
-                      Для максимальной надежности рекомендуем использовать браузерные Push-уведомления.
-                    </p>
                   </div>
                 )}
+                <p className="text-xs text-slate-400 mt-2 leading-tight">
+                  ⚠️ Telegram в России может работать нестабильно (иногда требуется VPN). Если
+                  уведомления не приходят, рекомендуем использовать Push.
+                </p>
               </div>
 
               <div className="rounded-2xl border border-slate-200/80 bg-[#faf7f3] px-4 py-3">
@@ -497,11 +540,25 @@ export default function ProfileSettingsPage() {
                     Уведомления заблокированы. Чтобы включить их, перейдите в настройки вашего
                     устройства/браузера, найдите этот сайт и разрешите отправку уведомлений.
                   </div>
-                ) : permissionStatus === 'granted' ? (
-                  <span className="mt-3 inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                    Уведомления успешно включены
-                  </span>
-                ) : permissionStatus === 'default' || permissionStatus === 'unknown' ? (
+                ) : isPushSubscribed ? (
+                  <div className="mt-3">
+                    <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                      Уведомления успешно включены
+                    </span>
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => void handlePushUnsubscribe()}
+                        disabled={isUnsubscribingPush}
+                        className="inline-flex h-8 items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isUnsubscribingPush ? 'Отключение...' : 'Отключить'}
+                      </button>
+                    </div>
+                  </div>
+                ) : permissionStatus === 'default' ||
+                  permissionStatus === 'unknown' ||
+                  permissionStatus === 'granted' ? (
                   <div className="mt-3">
                     <button
                       type="button"
@@ -511,7 +568,9 @@ export default function ProfileSettingsPage() {
                       Включить Push-уведомления
                     </button>
                     <p className="mt-2 text-xs text-slate-500">
-                      Нажмите «Разрешить» во всплывающем окне браузера
+                      {permissionStatus === 'granted'
+                        ? 'Push-уведомления отключены. Нажмите, чтобы включить снова.'
+                        : 'Нажмите «Разрешить» во всплывающем окне браузера'}
                     </p>
                   </div>
                 ) : (
