@@ -14,6 +14,7 @@ type Chat = {
   id: string
   itemTitle: string
   itemImageUrl: string | null
+  isItemAvailable: boolean
   partnerName: string
   preview: string
   time: string
@@ -38,6 +39,10 @@ type ConversationRow = {
   item: Item | null
   buyer: Profile | null
   seller: Profile | null
+}
+
+function hasConversationItem(item: ConversationRow['item']): item is Item {
+  return Boolean(item && typeof item.id === 'string')
 }
 
 function formatTime(value: string) {
@@ -108,13 +113,16 @@ export default function MessagesPage() {
         const isBuyer = conversation.buyer_id === user.id
         const partner = isBuyer ? conversation.seller : conversation.buyer
         const item = conversation.item
-        const itemImageUrl = item?.image_urls?.[0] ?? null
+        const isItemAvailable = hasConversationItem(item)
+        const itemImageUrl =
+          isItemAvailable && Array.isArray(item.image_urls) ? item.image_urls[0] ?? null : null
         const lastMessage = lastMessageByConversation.get(conversation.id)
 
         return {
           id: conversation.id,
-          itemTitle: item?.title?.trim() || 'Товар удален',
+          itemTitle: isItemAvailable ? item.title?.trim() || 'Без названия' : '',
           itemImageUrl,
+          isItemAvailable,
           partnerName: partner?.name?.trim() || 'Пользователь',
           preview: lastMessage?.text?.trim() || 'Новый диалог',
           time: lastMessage?.created_at ? formatTime(lastMessage.created_at) : '',
@@ -161,7 +169,7 @@ export default function MessagesPage() {
                 <li key={chat.id}>
                   <Link href={`/messages/${chat.id}`} className="flex items-center gap-4 px-4 py-4">
                     <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-200">
-                      {chat.itemImageUrl ? (
+                      {chat.isItemAvailable && chat.itemImageUrl ? (
                         <Image
                           src={chat.itemImageUrl}
                           alt={chat.itemTitle}
@@ -174,9 +182,15 @@ export default function MessagesPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="truncate text-base font-semibold text-slate-950">
-                          {chat.itemTitle}
-                        </p>
+                        {chat.isItemAvailable ? (
+                          <p className="truncate text-base font-semibold text-slate-950">
+                            {chat.itemTitle}
+                          </p>
+                        ) : (
+                          <p className="truncate text-base text-slate-500 italic">
+                            Объявление удалено или недоступно
+                          </p>
+                        )}
                         <span className="shrink-0 text-xs text-slate-500">{chat.time}</span>
                       </div>
                       <p className="truncate text-sm text-slate-500">

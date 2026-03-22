@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Send } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Send } from 'lucide-react'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { useAuth } from '../../components/AuthProvider'
@@ -38,6 +38,10 @@ type Conversation = {
   item: Item | null
   buyer: Profile | null
   seller: Profile | null
+}
+
+function hasConversationItem(item: Conversation['item']): item is Item {
+  return Boolean(item && typeof item.id === 'string')
 }
 
 function formatPrice(price: number) {
@@ -155,6 +159,12 @@ export default function ConversationPage() {
     () => Boolean(text.trim()) && Boolean(conversation?.id) && !sending,
     [conversation?.id, sending, text]
   )
+  const item = conversation?.item
+  const hasItem = hasConversationItem(item)
+  const itemImageUrl = hasItem && Array.isArray(item.image_urls) ? item.image_urls[0] ?? null : null
+  const itemTitle = hasItem ? item.title?.trim() || 'Без названия' : 'Объявление недоступно'
+  const itemPrice =
+    hasItem && typeof item.price === 'number' ? `${formatPrice(item.price)} ₽` : 'Цена не указана'
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -210,16 +220,16 @@ export default function ConversationPage() {
             </div>
           </div>
 
-          {conversation?.item ? (
+          {hasItem ? (
             <Link
-              href={`/item/${conversation.item.id}`}
-              className="z-30 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm"
+              href={`/item/${item.id}`}
+              className="z-30 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
             >
               <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-200">
-                {conversation.item.image_urls?.[0] ? (
+                {itemImageUrl ? (
                   <Image
-                    src={conversation.item.image_urls[0]}
-                    alt={conversation.item.title?.trim() || 'Товар'}
+                    src={itemImageUrl}
+                    alt={itemTitle}
                     fill
                     sizes="48px"
                     className="object-cover"
@@ -227,23 +237,19 @@ export default function ConversationPage() {
                   />
                 ) : null}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-slate-900">
-                  {conversation.item.title?.trim() || 'Без названия'}
+                  {itemTitle}
                 </p>
-                <p className="text-sm font-semibold text-slate-950">
-                  {typeof conversation.item.price === 'number'
-                    ? `${formatPrice(conversation.item.price)} ₽`
-                    : 'Цена не указана'}
-                </p>
+                <p className="text-sm font-semibold text-slate-950">{itemPrice}</p>
               </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
             </Link>
           ) : (
             <div className="z-30 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
               <div className="h-12 w-12 shrink-0 rounded-lg bg-slate-200" />
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-slate-900">Товар удален</p>
-                <p className="text-sm font-semibold text-slate-500">Объявление недоступно</p>
+                <p className="truncate text-sm font-medium text-slate-500">Объявление недоступно</p>
               </div>
             </div>
           )}

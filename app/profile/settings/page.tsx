@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, UserRound } from 'lucide-react'
+import { ArrowLeft, Bell, Send, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 
 import { useAuth } from '../../components/AuthProvider'
@@ -21,6 +21,12 @@ export default function ProfileSettingsPage() {
   const [success, setSuccess] = useState('')
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [telegramChatId, setTelegramChatId] = useState<string | null>(null)
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | 'unsupported'>(
+    'default'
+  )
+  const [notificationsError, setNotificationsError] = useState('')
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
 
   useEffect(() => {
     if (loading || user) {
@@ -50,7 +56,69 @@ export default function ProfileSettingsPage() {
     }
   }, [avatarPreviewUrl])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (!('Notification' in window)) {
+      setPushPermission('unsupported')
+      return
+    }
+
+    setPushPermission(Notification.permission)
+  }, [])
+
+  useEffect(() => {
+    if (!user) {
+      return
+    }
+
+    let isActive = true
+    setIsLoadingNotifications(true)
+    setNotificationsError('')
+
+    const loadNotificationSettings = async () => {
+      try {
+        const { data, error } = await (supabase.from('profiles') as any)
+          .select('telegram_chat_id')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (error) {
+          throw error
+        }
+
+        if (isActive) {
+          setTelegramChatId(data?.telegram_chat_id ?? null)
+        }
+      } catch (notificationError) {
+        if (isActive) {
+          const message =
+            notificationError instanceof Error
+              ? notificationError.message
+              : 'Не удалось загрузить настройки уведомлений'
+          setNotificationsError(message)
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingNotifications(false)
+        }
+      }
+    }
+
+    void loadNotificationSettings()
+
+    return () => {
+      isActive = false
+    }
+  }, [user])
+
   const hasAvatar = useMemo(() => Boolean(avatarPreviewUrl), [avatarPreviewUrl])
+  const telegramBotLink = useMemo(
+    () => `https://t.me/ProDanceMarket_Bot?start=${user?.id ?? ''}`,
+    [user?.id]
+  )
 
   const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -160,6 +228,23 @@ export default function ProfileSettingsPage() {
     }
   }
 
+  const handlePushPermissionRequest = async () => {
+    setNotificationsError('')
+
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setPushPermission('unsupported')
+      setNotificationsError('Ваш браузер не поддерживает push-уведомления')
+      return
+    }
+
+    try {
+      const permission = await Notification.requestPermission()
+      setPushPermission(permission)
+    } catch {
+      setNotificationsError('Не удалось запросить разрешение на push-уведомления')
+    }
+  }
+
   if (loading || !user) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#faf7f3] px-4 pb-28 md:pb-0">
@@ -244,6 +329,75 @@ export default function ProfileSettingsPage() {
               className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-base outline-none placeholder:text-slate-400 focus:border-slate-950 focus:bg-white"
               placeholder="Ваш город"
             />
+          </section>
+
+          <div className="h-px w-full bg-slate-200/70" />
+
+          <section className="px-5 py-5">
+            <div className="flex items-center gap-2">
+              <Bell className="h-5 w-5 text-slate-700" />
+              <h2 className="text-base font-semibold text-slate-950">Уведомления</h2>
+            </div>
+            <p className="mt-1 text-sm text-slate-500">
+              Выберите удобный канал, чтобы не пропустить новые сообщения от покупателей.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-[#faf7f3] px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Telegram</p>
+                  <p className="text-xs text-slate-500">Мгновенные уведомления через бота</p>
+                </div>
+                {telegramChatId ? (
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    Подключено
+                  </span>
+                ) : (
+                  <Link
+                    href={telegramBotLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-9 items-center justify-center gap-1 rounded-full bg-sky-500 px-3 text-xs font-semibold text-white transition hover:bg-sky-600"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    Подключить Telegram
+                  </Link>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-[#faf7f3] px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Push-уведомления</p>
+                  <p className="text-xs text-slate-500">В браузере на этом устройстве</p>
+                </div>
+                {pushPermission === 'granted' ? (
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    Включены
+                  </span>
+                ) : pushPermission === 'unsupported' ? (
+                  <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
+                    Не поддерживается
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void handlePushPermissionRequest()}
+                    className="inline-flex h-9 items-center justify-center rounded-full bg-slate-950 px-3 text-xs font-semibold text-white transition hover:bg-black"
+                  >
+                    Запросить разрешение
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {isLoadingNotifications ? (
+              <p className="mt-3 text-xs text-slate-500">Загрузка статуса уведомлений...</p>
+            ) : null}
+            {notificationsError ? (
+              <p className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">
+                {notificationsError}
+              </p>
+            ) : null}
           </section>
 
           <div className="h-px w-full bg-slate-200/70" />

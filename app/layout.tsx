@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Manrope } from 'next/font/google'
 
+import { NotificationOnboardingModal } from '../components/NotificationOnboardingModal'
 import { AppShell } from './components/AppShell'
 import { AuthProvider } from './components/AuthProvider'
 import { createSupabaseServerClient } from './lib/supabase-server'
@@ -33,6 +34,7 @@ export default async function RootLayout({
       >
         <AuthProvider initialSession={session}>
           <AppShell>{children}</AppShell>
+          <NotificationOnboardingModal />
         </AuthProvider>
       </body>
     </html>
