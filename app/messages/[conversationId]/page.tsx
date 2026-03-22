@@ -165,6 +165,9 @@ export default function ConversationPage() {
   const itemTitle = hasItem ? item.title?.trim() || 'Без названия' : 'Объявление недоступно'
   const itemPrice =
     hasItem && typeof item.price === 'number' ? `${formatPrice(item.price)} ₽` : 'Цена не указана'
+  const currentUserName =
+    (conversation?.buyer_id === user?.id ? conversation?.buyer?.name : conversation?.seller?.name)?.trim() ||
+    'Пользователь'
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -175,24 +178,44 @@ export default function ConversationPage() {
 
     setSending(true)
     setError('')
+    const trimmedText = text.trim()
 
-    const payload = {
-      conversation_id: conversation.id,
-      sender_id: user.id,
-      text: text.trim(),
-      is_read: false,
+    try {
+      const payload = {
+        conversation_id: conversation.id,
+        sender_id: user.id,
+        text: trimmedText,
+        is_read: false,
+      }
+
+      const { error: insertError } = await (supabase.from('messages') as any).insert(payload)
+
+      if (insertError) {
+        setError(insertError.message)
+        return
+      }
+
+      setText('')
+
+      try {
+        await fetch('/api/telegram/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            receiver_id: conversation.buyer_id === user.id ? conversation.seller_id : conversation.buyer_id,
+            sender_name: currentUserName,
+            item_title: itemTitle,
+            message_text: trimmedText,
+          }),
+        })
+      } catch (notifyError) {
+        console.error('Failed to send Telegram notification', notifyError)
+      }
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Не удалось отправить сообщение')
+    } finally {
+      setSending(false)
     }
-
-    const { error: insertError } = await (supabase.from('messages') as any).insert(payload)
-
-    setSending(false)
-
-    if (insertError) {
-      setError(insertError.message)
-      return
-    }
-
-    setText('')
   }
 
   if (loading || !user || !conversationId) {
