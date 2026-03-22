@@ -197,20 +197,42 @@ export default function ConversationPage() {
 
       setText('')
 
-      try {
-        await fetch('/api/telegram/notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            receiver_id: conversation.buyer_id === user.id ? conversation.seller_id : conversation.buyer_id,
-            sender_name: currentUserName,
-            item_title: itemTitle,
-            message_text: trimmedText,
-          }),
-        })
-      } catch (notifyError) {
-        console.error('Failed to send Telegram notification', notifyError)
-      }
+      const receiverId = conversation.buyer_id === user.id ? conversation.seller_id : conversation.buyer_id
+
+      await Promise.all([
+        (async () => {
+          try {
+            await fetch('/api/telegram/notify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                receiver_id: receiverId,
+                sender_name: currentUserName,
+                item_title: itemTitle,
+                message_text: trimmedText,
+              }),
+            })
+          } catch (notifyError) {
+            console.error('Failed to send Telegram notification', notifyError)
+          }
+        })(),
+        (async () => {
+          try {
+            await fetch('/api/push/notify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                receiver_id: receiverId,
+                title: `Новое сообщение от ${currentUserName}`,
+                body: trimmedText,
+                url: `/messages/${conversationId}`,
+              }),
+            })
+          } catch (pushNotifyError) {
+            console.error('Failed to send push notification', pushNotifyError)
+          }
+        })(),
+      ])
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Не удалось отправить сообщение')
     } finally {

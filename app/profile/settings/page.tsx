@@ -8,6 +8,19 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 import { useAuth } from '../../components/AuthProvider'
 import { supabase } from '../../lib/supabase'
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
+
+  for (let index = 0; index < rawData.length; index += 1) {
+    outputArray[index] = rawData.charCodeAt(index)
+  }
+
+  return outputArray
+}
+
 export default function ProfileSettingsPage() {
   const router = useRouter()
   const { session, loading } = useAuth()
@@ -27,6 +40,8 @@ export default function ProfileSettingsPage() {
   )
   const [notificationsError, setNotificationsError] = useState('')
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
+  const [isIOS, setIsIOS] = useState(false)
+  const [isStandalone, setIsStandalone] = useState(false)
 
   useEffect(() => {
     if (loading || user) {
@@ -60,6 +75,16 @@ export default function ProfileSettingsPage() {
     if (typeof window === 'undefined') {
       return
     }
+
+    setIsIOS(
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    )
+    setIsStandalone(
+      window.matchMedia('(display-mode: standalone)').matches ||
+        ('standalone' in navigator &&
+          (navigator as Navigator & { standalone?: boolean }).standalone === true)
+    )
 
     if (!('Notification' in window)) {
       setPushPermission('unsupported')
@@ -228,7 +253,7 @@ export default function ProfileSettingsPage() {
     }
   }
 
-  const handlePushPermissionRequest = async () => {
+  const handlePushSubscribe = async () => {
     setNotificationsError('')
 
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -237,11 +262,51 @@ export default function ProfileSettingsPage() {
       return
     }
 
+    if (!('serviceWorker' in navigator)) {
+      setPushPermission('unsupported')
+      setNotificationsError('Service Worker не поддерживается в этом браузере')
+      return
+    }
+
+    if (isIOS && !isStandalone) {
+      setNotificationsError('')
+      return
+    }
+
     try {
       const permission = await Notification.requestPermission()
       setPushPermission(permission)
+
+      if (permission !== 'granted') {
+        return
+      }
+
+      const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!vapidPublicKey) {
+        setNotificationsError('Не настроен публичный ключ push-уведомлений')
+        return
+      }
+
+      const reg = await navigator.serviceWorker.register('/sw.js')
+      const existingSubscription = await reg.pushManager.getSubscription()
+      const sub =
+        existingSubscription ??
+        (await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        }))
+
+      const response = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub.toJSON() }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Не удалось сохранить push-подписку')
+      }
     } catch {
-      setNotificationsError('Не удалось запросить разрешение на push-уведомления')
+      setNotificationsError('Не удалось включить push-уведомления')
     }
   }
 
@@ -371,27 +436,39 @@ export default function ProfileSettingsPage() {
                 )}
               </div>
 
-              <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-[#faf7f3] px-4 py-3">
+              <div className="rounded-2xl border border-slate-200/80 bg-[#faf7f3] px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">Push-уведомления</p>
                   <p className="text-xs text-slate-500">В браузере на этом устройстве</p>
                 </div>
-                {pushPermission === 'granted' ? (
-                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                {isIOS && !isStandalone ? (
+                  <div className="mt-3 rounded-xl bg-slate-100 p-3 text-sm text-slate-700">
+                    🍎 На iPhone push-уведомления работают только как приложение. Откройте этот
+                    сайт в стандартном браузере <span className="font-semibold">Safari</span>,
+                    нажмите иконку «Поделиться» (квадрат со стрелочкой) и выберите «На экран
+                    Домой». Затем откройте ProDance с рабочего стола!
+                  </div>
+                ) : pushPermission === 'granted' ? (
+                  <span className="mt-3 inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
                     Включены
                   </span>
                 ) : pushPermission === 'unsupported' ? (
-                  <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
+                  <span className="mt-3 inline-flex rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
                     Не поддерживается
                   </span>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => void handlePushPermissionRequest()}
-                    className="inline-flex h-9 items-center justify-center rounded-full bg-slate-950 px-3 text-xs font-semibold text-white transition hover:bg-black"
-                  >
-                    Запросить разрешение
-                  </button>
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => void handlePushSubscribe()}
+                      className="inline-flex h-9 items-center justify-center rounded-full bg-blue-600 px-3 text-xs font-semibold text-white transition hover:bg-blue-700"
+                    >
+                      Включить Push-уведомления
+                    </button>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Нажмите «Разрешить» во всплывающем окне браузера
+                    </p>
+                  </div>
                 )}
               </div>
             </div>

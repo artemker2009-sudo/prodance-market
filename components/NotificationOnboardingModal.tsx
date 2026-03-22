@@ -6,12 +6,27 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../app/components/AuthProvider'
 import { supabase } from '../app/lib/supabase'
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
+
+  for (let index = 0; index < rawData.length; index += 1) {
+    outputArray[index] = rawData.charCodeAt(index)
+  }
+
+  return outputArray
+}
+
 export function NotificationOnboardingModal() {
   const { session, loading } = useAuth()
   const user = session?.user ?? null
   const [isVisible, setIsVisible] = useState(false)
   const [isBusy, setIsBusy] = useState(false)
   const [isChecking, setIsChecking] = useState(true)
+  const [isIOS, setIsIOS] = useState(false)
+  const [isStandalone, setIsStandalone] = useState(false)
 
   const telegramBotLink = useMemo(() => {
     if (!user) {
@@ -20,6 +35,22 @@ export function NotificationOnboardingModal() {
 
     return `tg://resolve?domain=prodance_market_bot&start=${user.id}`
   }, [user])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    setIsIOS(
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    )
+    setIsStandalone(
+      window.matchMedia('(display-mode: standalone)').matches ||
+        ('standalone' in navigator &&
+          (navigator as Navigator & { standalone?: boolean }).standalone === true)
+    )
+  }, [])
 
   useEffect(() => {
     let isActive = true
@@ -101,15 +132,49 @@ export function NotificationOnboardingModal() {
     void markSetupCompleted()
   }
 
-  const handlePushEnable = async () => {
+  const handlePushSubscribe = async () => {
+    if (isIOS && !isStandalone) {
+      return
+    }
+
     try {
-      if ('Notification' in window) {
-        await Notification.requestPermission()
+      if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) {
+        return
       }
+
+      const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!vapidPublicKey) {
+        console.error('Missing NEXT_PUBLIC_VAPID_PUBLIC_KEY')
+        return
+      }
+
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') {
+        return
+      }
+
+      const reg = await navigator.serviceWorker.register('/sw.js')
+      const existingSubscription = await reg.pushManager.getSubscription()
+      const sub =
+        existingSubscription ??
+        (await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        }))
+
+      const response = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub.toJSON() }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Push subscribe failed with status ${response.status}`)
+      }
+
+      await markSetupCompleted()
     } catch (permissionError) {
       console.error('Failed to request push notification permission', permissionError)
-    } finally {
-      await markSetupCompleted()
     }
   }
 
@@ -151,14 +216,28 @@ export function NotificationOnboardingModal() {
             Для максимальной надежности рекомендуем использовать браузерные Push-уведомления.
           </p>
 
-          <button
-            type="button"
-            onClick={() => void handlePushEnable()}
-            disabled={isBusy}
-            className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60"
-          >
-            Включить Push-уведомления
-          </button>
+          {isIOS && !isStandalone ? (
+            <div className="rounded-xl bg-slate-100 p-3 text-sm text-slate-700">
+              🍎 На iPhone push-уведомления работают только как приложение. Откройте этот сайт в
+              стандартном браузере <span className="font-semibold">Safari</span>, нажмите иконку
+              «Поделиться» (квадрат со стрелочкой) и выберите «На экран Домой». Затем откройте
+              ProDance с рабочего стола!
+            </div>
+          ) : (
+            <div>
+              <button
+                type="button"
+                onClick={() => void handlePushSubscribe()}
+                disabled={isBusy}
+                className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+              >
+                Включить Push-уведомления
+              </button>
+              <p className="mt-2 text-center text-xs text-slate-500">
+                Нажмите «Разрешить» во всплывающем окне браузера
+              </p>
+            </div>
+          )}
         </div>
 
         <button
