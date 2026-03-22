@@ -27,6 +27,9 @@ export function NotificationOnboardingModal() {
   const [isChecking, setIsChecking] = useState(true)
   const [isIOS, setIsIOS] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission | 'unknown'>(
+    'unknown'
+  )
 
   const telegramBotLink = useMemo(() => {
     if (!user) {
@@ -50,6 +53,12 @@ export function NotificationOnboardingModal() {
         ('standalone' in navigator &&
           (navigator as Navigator & { standalone?: boolean }).standalone === true)
     )
+
+    if ('Notification' in window) {
+      setPermissionStatus(Notification.permission)
+    } else {
+      setPermissionStatus('unknown')
+    }
   }, [])
 
   useEffect(() => {
@@ -139,16 +148,21 @@ export function NotificationOnboardingModal() {
 
     try {
       if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) {
+        throw new Error('Ваш браузер не поддерживает push-уведомления')
+      }
+
+      if (Notification.permission === 'denied') {
+        setPermissionStatus('denied')
         return
       }
 
       const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
       if (!vapidPublicKey) {
-        console.error('Missing NEXT_PUBLIC_VAPID_PUBLIC_KEY')
-        return
+        throw new Error('Не настроен публичный ключ push-уведомлений')
       }
 
       const permission = await Notification.requestPermission()
+      setPermissionStatus(permission)
       if (permission !== 'granted') {
         return
       }
@@ -173,8 +187,10 @@ export function NotificationOnboardingModal() {
       }
 
       await markSetupCompleted()
-    } catch (permissionError) {
-      console.error('Failed to request push notification permission', permissionError)
+    } catch (error) {
+      console.error('Failed to subscribe for push notifications', error)
+      const message = error instanceof Error ? error.message : 'Неизвестная ошибка'
+      window.alert(`Ошибка подписки: ${message}`)
     }
   }
 
@@ -223,7 +239,16 @@ export function NotificationOnboardingModal() {
               «Поделиться» (квадрат со стрелочкой) и выберите «На экран Домой». Затем откройте
               ProDance с рабочего стола!
             </div>
-          ) : (
+          ) : permissionStatus === 'denied' ? (
+            <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
+              Уведомления заблокированы. Чтобы включить их, перейдите в настройки вашего
+              устройства/браузера, найдите этот сайт и разрешите отправку уведомлений.
+            </div>
+          ) : permissionStatus === 'granted' ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+              Уведомления успешно включены
+            </div>
+          ) : permissionStatus === 'default' || permissionStatus === 'unknown' ? (
             <div>
               <button
                 type="button"
@@ -236,6 +261,10 @@ export function NotificationOnboardingModal() {
               <p className="mt-2 text-center text-xs text-slate-500">
                 Нажмите «Разрешить» во всплывающем окне браузера
               </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+              Не удалось определить статус уведомлений на этом устройстве.
             </div>
           )}
         </div>

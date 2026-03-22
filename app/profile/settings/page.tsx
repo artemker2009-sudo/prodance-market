@@ -35,8 +35,8 @@ export default function ProfileSettingsPage() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [telegramChatId, setTelegramChatId] = useState<string | null>(null)
-  const [pushPermission, setPushPermission] = useState<NotificationPermission | 'unsupported'>(
-    'default'
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission | 'unknown'>(
+    'unknown'
   )
   const [notificationsError, setNotificationsError] = useState('')
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
@@ -86,12 +86,11 @@ export default function ProfileSettingsPage() {
           (navigator as Navigator & { standalone?: boolean }).standalone === true)
     )
 
-    if (!('Notification' in window)) {
-      setPushPermission('unsupported')
-      return
+    if ('Notification' in window) {
+      setPermissionStatus(Notification.permission)
+    } else {
+      setPermissionStatus('unknown')
     }
-
-    setPushPermission(Notification.permission)
   }, [])
 
   useEffect(() => {
@@ -256,26 +255,26 @@ export default function ProfileSettingsPage() {
   const handlePushSubscribe = async () => {
     setNotificationsError('')
 
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      setPushPermission('unsupported')
-      setNotificationsError('Ваш браузер не поддерживает push-уведомления')
-      return
-    }
-
-    if (!('serviceWorker' in navigator)) {
-      setPushPermission('unsupported')
-      setNotificationsError('Service Worker не поддерживается в этом браузере')
-      return
-    }
-
-    if (isIOS && !isStandalone) {
-      setNotificationsError('')
-      return
-    }
-
     try {
+      if (typeof window === 'undefined' || !('Notification' in window)) {
+        throw new Error('Ваш браузер не поддерживает push-уведомления')
+      }
+
+      if (!('serviceWorker' in navigator)) {
+        throw new Error('Service Worker не поддерживается в этом браузере')
+      }
+
+      if (isIOS && !isStandalone) {
+        return
+      }
+
+      if (Notification.permission === 'denied') {
+        setPermissionStatus('denied')
+        return
+      }
+
       const permission = await Notification.requestPermission()
-      setPushPermission(permission)
+      setPermissionStatus(permission)
 
       if (permission !== 'granted') {
         return
@@ -305,8 +304,10 @@ export default function ProfileSettingsPage() {
       if (!response.ok) {
         throw new Error('Не удалось сохранить push-подписку')
       }
-    } catch {
-      setNotificationsError('Не удалось включить push-уведомления')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Неизвестная ошибка'
+      setNotificationsError(`Не удалось включить push-уведомления: ${message}`)
+      window.alert(`Ошибка подписки: ${message}`)
     }
   }
 
@@ -448,15 +449,16 @@ export default function ProfileSettingsPage() {
                     нажмите иконку «Поделиться» (квадрат со стрелочкой) и выберите «На экран
                     Домой». Затем откройте ProDance с рабочего стола!
                   </div>
-                ) : pushPermission === 'granted' ? (
+                ) : permissionStatus === 'denied' ? (
+                  <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800">
+                    Уведомления заблокированы. Чтобы включить их, перейдите в настройки вашего
+                    устройства/браузера, найдите этот сайт и разрешите отправку уведомлений.
+                  </div>
+                ) : permissionStatus === 'granted' ? (
                   <span className="mt-3 inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                    Включены
+                    Уведомления успешно включены
                   </span>
-                ) : pushPermission === 'unsupported' ? (
-                  <span className="mt-3 inline-flex rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
-                    Не поддерживается
-                  </span>
-                ) : (
+                ) : permissionStatus === 'default' || permissionStatus === 'unknown' ? (
                   <div className="mt-3">
                     <button
                       type="button"
@@ -468,6 +470,10 @@ export default function ProfileSettingsPage() {
                     <p className="mt-2 text-xs text-slate-500">
                       Нажмите «Разрешить» во всплывающем окне браузера
                     </p>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                    Не удалось определить статус уведомлений на этом устройстве.
                   </div>
                 )}
               </div>

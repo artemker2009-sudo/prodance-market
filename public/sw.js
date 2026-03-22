@@ -1,5 +1,5 @@
-self.addEventListener('push', function(event) {
-  const data = event.data.json();
+self.addEventListener('push', function(e) {
+  const data = e.data.json();
   self.registration.showNotification(data.title, {
     body: data.body,
     icon: '/icon-192x192.png',
@@ -7,7 +7,7 @@ self.addEventListener('push', function(event) {
   });
 });
 
-self.addEventListener('notificationclick', function(event) {
-  event.notification.close();
-  event.waitUntil(clients.openWindow(event.notification.data.url));
+self.addEventListener('notificationclick', function(e) {
+  e.notification.close();
+  e.waitUntil(clients.openWindow(e.notification.data.url));
 });
