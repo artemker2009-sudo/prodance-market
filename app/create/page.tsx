@@ -121,10 +121,19 @@ export default function CreatePage() {
       }
 
       router.push('/')
-    } catch (submitError) {
-      setError(
-        submitError instanceof Error ? submitError.message : 'Не удалось опубликовать объявление'
-      )
+    } catch (error) {
+      console.error('Ошибка публикации:', error)
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' &&
+              error !== null &&
+              'message' in error &&
+              typeof error.message === 'string'
+            ? error.message
+            : ''
+
+      setError(errorMessage || 'Произошла ошибка при загрузке. Проверьте консоль.')
     } finally {
       setIsSubmitting(false)
     }

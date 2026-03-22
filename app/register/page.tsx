@@ -130,6 +130,8 @@ export default function RegisterPage() {
   const [citySearch, setCitySearch] = useState('')
   const [isCitySheetOpen, setIsCitySheetOpen] = useState(false)
   const [error, setError] = useState('')
+  const [errorCount, setErrorCount] = useState(0)
+  const [errorTone, setErrorTone] = useState<'error' | 'info'>('error')
   const [loading, setLoading] = useState(false)
   const redirectTo = useMemo(
     () => getSafeRedirectPath(searchParams.get('redirectTo')),
@@ -162,6 +164,7 @@ export default function RegisterPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError('')
+    setErrorTone('error')
 
     const phoneValue = phone.trim()
     const nameValue = name.trim()
@@ -169,16 +172,19 @@ export default function RegisterPage() {
     const cleanPhone = phoneValue.replace(/\D/g, '')
 
     if (!cleanPhone || cleanPhone.length < 10) {
+      setErrorTone('error')
       setError('Введите корректный номер телефона')
       return
     }
 
     if (!cityValue) {
+      setErrorTone('error')
       setError('Выберите город')
       return
     }
 
     if (password !== confirmPassword) {
+      setErrorTone('error')
       setError('Пароли не совпадают')
       return
     }
@@ -203,20 +209,24 @@ export default function RegisterPage() {
         throw signUpError
       }
 
+      setErrorCount(0)
       await waitForSupabaseSession('signed-in')
       window.location.assign(redirectTo)
     } catch (caughtError) {
       const message =
         caughtError instanceof Error ? caughtError.message : String(caughtError)
+      const isFirstError = errorCount === 0
+      setErrorCount((prev) => prev + 1)
 
-      if (message.includes('Load failed') || message.includes('Failed to fetch')) {
+      if (isFirstError) {
+        setErrorTone('info')
         setError(
-          'Ошибка соединения с сервером. Проверьте интернет или перезагрузите страницу.'
+          'Всё отлично, просто нажмите на кнопку еще раз, случилась небольшая техническая шоколадка'
         )
-        return
+      } else {
+        setErrorTone('error')
+        setError(message)
       }
-
-      setError(message)
     } finally {
       setLoading(false)
     }
@@ -352,7 +362,13 @@ export default function RegisterPage() {
           </div>
 
           {error ? (
-            <p className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+            <p
+              className={`rounded-2xl px-4 py-3 text-sm ${
+                errorTone === 'info'
+                  ? 'border border-amber-200 bg-amber-50 text-amber-700'
+                  : 'border border-red-100 bg-red-50 text-red-600'
+              }`}
+            >
               {error}
             </p>
           ) : null}
