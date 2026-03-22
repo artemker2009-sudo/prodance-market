@@ -116,7 +116,7 @@ export default function ProfileSettingsPage() {
 
   const hasAvatar = useMemo(() => Boolean(avatarPreviewUrl), [avatarPreviewUrl])
   const telegramBotLink = useMemo(
-    () => `https://t.me/ProDanceMarket_Bot?start=${user?.id ?? ''}`,
+    () => `tg://resolve?domain=prodance_market_bot&start=${user?.id ?? ''}`,
     [user?.id]
   )
 
@@ -353,15 +353,21 @@ export default function ProfileSettingsPage() {
                     Подключено
                   </span>
                 ) : (
-                  <Link
-                    href={telegramBotLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex h-9 items-center justify-center gap-1 rounded-full bg-sky-500 px-3 text-xs font-semibold text-white transition hover:bg-sky-600"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    Подключить Telegram
-                  </Link>
+                  <div className="flex flex-col items-center">
+                    <Link
+                      href={telegramBotLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-9 items-center justify-center gap-1 rounded-full bg-sky-500 px-3 text-xs font-semibold text-white transition hover:bg-sky-600"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      Подключить Telegram
+                    </Link>
+                    <p className="mt-2 max-w-[220px] text-center text-xs text-slate-400">
+                      Из-за ограничений провайдеров Telegram может работать нестабильно или требовать VPN.
+                      Для максимальной надежности рекомендуем использовать браузерные Push-уведомления.
+                    </p>
+                  </div>
                 )}
               </div>
 

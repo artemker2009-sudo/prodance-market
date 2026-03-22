@@ -15,10 +15,10 @@ export function NotificationOnboardingModal() {
 
   const telegramBotLink = useMemo(() => {
     if (!user) {
-      return 'https://t.me/ProDanceMarket_Bot'
+      return 'tg://resolve?domain=prodance_market_bot'
     }
 
-    return `https://t.me/ProDanceMarket_Bot?start=${user.id}`
+    return `tg://resolve?domain=prodance_market_bot&start=${user.id}`
   }, [user])
 
   useEffect(() => {
@@ -146,6 +146,10 @@ export function NotificationOnboardingModal() {
             <Send className="h-4 w-4" />
             Подключить Telegram
           </button>
+          <p className="mt-2 text-center text-xs text-slate-400">
+            Из-за ограничений провайдеров Telegram может работать нестабильно или требовать VPN.
+            Для максимальной надежности рекомендуем использовать браузерные Push-уведомления.
+          </p>
 
           <button
             type="button"
