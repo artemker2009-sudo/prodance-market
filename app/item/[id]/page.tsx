@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 
 import { createSupabaseServerClient } from '../../lib/supabase-server'
-import { FavoriteToggle, StartConversationButton } from './item-actions'
+import { FavoriteToggle, QuickQuestionsSection, StartConversationButton } from './item-actions'
 import { ItemImageGallery } from './item-image-gallery'
 
 type ItemPageProps = {
@@ -231,6 +231,8 @@ export default async function ItemPage({ params }: ItemPageProps) {
           </div>
           <span className="text-xl leading-none text-slate-400">&gt;</span>
         </Link>
+
+        <QuickQuestionsSection itemId={item.id} sellerId={item.seller_id} />
       </section>
 
       <div className="fixed bottom-16 left-1/2 z-40 w-full max-w-[480px] -translate-x-1/2 border-t border-slate-200 bg-white px-4 py-4 pb-safe md:bottom-0">

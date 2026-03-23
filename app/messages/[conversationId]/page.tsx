@@ -56,7 +56,6 @@ export default function ConversationPage() {
   const conversationId = routeParams?.conversationId ?? ''
   const [conversation, setConversation] = useState<Conversation | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
-  const [partnerName, setPartnerName] = useState('Собеседник')
   const [text, setText] = useState('')
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
@@ -141,9 +140,6 @@ export default function ConversationPage() {
         }
 
         setConversation(conversationData as Conversation)
-        const isBuyer = conversationData.buyer_id === user.id
-        const partner = isBuyer ? conversationData.seller : conversationData.buyer
-
         const { data: messageRows } = await (supabase.from('messages') as any)
           .select('id, sender_id, text, is_read, created_at')
           .eq('conversation_id', conversationId)
@@ -151,11 +147,6 @@ export default function ConversationPage() {
 
         if (!active) {
           return
-        }
-
-        const resolvedName = (partner as { name?: string } | null)?.name
-        if (resolvedName) {
-          setPartnerName(resolvedName)
         }
 
         setMessages((messageRows ?? []) as Message[])
@@ -215,6 +206,8 @@ export default function ConversationPage() {
     () => Boolean(text.trim()) && Boolean(conversation?.id) && !sending,
     [conversation?.id, sending, text]
   )
+  const isBuyer = user?.id === conversation?.buyer_id
+  const interlocutor = isBuyer ? conversation?.seller : conversation?.buyer
   const item = conversation?.item
   const hasItem = hasConversationItem(item)
   const itemImageUrl = hasItem && Array.isArray(item.image_urls) ? item.image_urls[0] ?? null : null
@@ -317,13 +310,15 @@ export default function ConversationPage() {
             </Link>
             <div>
               <p className="text-xs tracking-[0.12em] text-slate-500 uppercase">Диалог</p>
-              <h1 className="text-base font-semibold text-slate-950">{partnerName}</h1>
+              <h1 className="text-base font-semibold text-slate-950">
+                {interlocutor?.name || 'Пользователь'}
+              </h1>
             </div>
           </div>
 
           {conversation?.item && hasItem ? (
             <Link
-              href={`/items/${item.id}`}
+              href={`/item/${item.id}`}
               className="z-30 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
             >
               <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-200">
@@ -399,7 +394,7 @@ export default function ConversationPage() {
             value={text}
             onChange={(event) => setText(event.target.value)}
             placeholder="Введите сообщение..."
-            className="h-11 w-full rounded-xl bg-[#faf7f3] px-4 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+            className="h-11 w-full rounded-xl bg-[#faf7f3] px-4 text-[16px] text-slate-900 outline-none placeholder:text-slate-400"
           />
           <button
             type="submit"

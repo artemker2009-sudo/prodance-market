@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { Heart, Loader2 } from 'lucide-react'
 
@@ -142,5 +142,160 @@ export function StartConversationButton({
         {sellerId === userId ? 'Это ваше объявление' : 'Написать продавцу'}
       </span>
     </button>
+  )
+}
+
+const quickQuestionOptions = [
+  'Ещё продаёте?',
+  'Торг уместен?',
+  'На какой рост подойдёт?',
+  'Можно примерить?',
+  'Какой точный размер (ОГ, ОТ, ОБ)?',
+  'Отправите СДЭК/Почтой?',
+] as const
+
+export function QuickQuestionsSection({
+  itemId,
+  sellerId,
+}: {
+  itemId: string
+  sellerId: string | null
+}) {
+  const router = useRouter()
+  const { session } = useAuth()
+  const userId = session?.user?.id ?? null
+  const [isSending, setIsSending] = useState(false)
+  const [toastMessage, setToastMessage] = useState('')
+
+  const toast = useMemo(
+    () => ({
+      error: (message: string) => {
+        setToastMessage(message)
+      },
+    }),
+    []
+  )
+
+  const loading = useMemo(
+    () => ({
+      show: () => setIsSending(true),
+      hide: () => setIsSending(false),
+    }),
+    []
+  )
+
+  useEffect(() => {
+    if (!toastMessage) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setToastMessage('')
+    }, 3200)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [toastMessage])
+
+  const handleQuickMessageClick = async (messageText: string) => {
+    const trimmedMessage = messageText.trim()
+    if (!trimmedMessage) {
+      return
+    }
+
+    if (!userId) {
+      router.push(buildLoginRedirectHref(`/item/${itemId}`, { reason: 'message' }))
+      return
+    }
+
+    if (!sellerId) {
+      toast.error('Не удалось определить продавца')
+      return
+    }
+
+    if (sellerId === userId) {
+      toast.error('Это ваше объявление')
+      return
+    }
+
+    try {
+      loading.show()
+
+      const { data: existingConversation, error: existingConversationError } = await (
+        supabase.from('conversations') as any
+      )
+        .select('id')
+        .eq('item_id', itemId)
+        .eq('buyer_id', userId)
+        .eq('seller_id', sellerId)
+        .maybeSingle()
+
+      if (existingConversationError) {
+        throw existingConversationError
+      }
+
+      let conversationId: string | null = existingConversation?.id ?? null
+
+      if (!conversationId) {
+        const { data: createdConversation, error: createConversationError } = await (
+          supabase.from('conversations') as any
+        )
+          .insert({
+            item_id: itemId,
+            buyer_id: userId,
+            seller_id: sellerId,
+          })
+          .select('id')
+          .single()
+
+        if (createConversationError || !createdConversation?.id) {
+          throw createConversationError ?? new Error('Не удалось создать диалог')
+        }
+
+        conversationId = createdConversation.id
+      }
+
+      const { error: sendMessageError } = await (supabase.from('messages') as any).insert({
+        conversation_id: conversationId,
+        sender_id: userId,
+        text: trimmedMessage,
+        is_read: false,
+      })
+
+      if (sendMessageError) {
+        throw sendMessageError
+      }
+
+      router.push(`/messages/${conversationId}`)
+    } catch (caughtError) {
+      toast.error(caughtError instanceof Error ? caughtError.message : 'Не удалось отправить сообщение')
+    } finally {
+      loading.hide()
+    }
+  }
+
+  return (
+    <section className="mt-6">
+      <h2 className="text-xl font-semibold mb-4">Спросите у продавца</h2>
+      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+        {quickQuestionOptions.map((questionText) => (
+          <button
+            key={questionText}
+            type="button"
+            onClick={() => void handleQuickMessageClick(questionText)}
+            disabled={isSending}
+            className="whitespace-nowrap rounded-full bg-slate-100 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-200 disabled:opacity-60"
+          >
+            {questionText}
+          </button>
+        ))}
+      </div>
+      {toastMessage ? (
+        <div className="mt-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {toastMessage}
+        </div>
+      ) : null}
+    </section>
   )
 }
