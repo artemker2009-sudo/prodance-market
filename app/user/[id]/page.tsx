@@ -26,6 +26,13 @@ type Item = {
   status: string | null
 }
 
+type Review = {
+  id: string
+  rating: number | null
+  comment: string | null
+  created_at: string | null
+}
+
 function isActiveStatus(status: string | null | undefined) {
   const normalized = (status ?? '').trim().toLowerCase()
   return normalized !== 'sold' && normalized !== 'продано'
@@ -56,10 +63,19 @@ export default async function PublicUserPage({ params }: UserPageProps) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data: profile, error: profileError }, { data: rawItems, error: itemsError }] = await Promise.all([
+  const [
+    { data: profile, error: profileError },
+    { data: rawItems, error: itemsError },
+    { data: rawReviews, error: reviewsError },
+  ] = await Promise.all([
     (supabase.from('profiles') as any).select('*').eq('id', routeParams.id).single(),
     (supabase.from('items') as any)
       .select('id, title, price, image_urls, status')
+      .eq('seller_id', id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false }),
+    (supabase.from('reviews') as any)
+      .select('id, rating, comment, created_at')
       .eq('seller_id', id)
       .order('created_at', { ascending: false }),
   ])
@@ -72,7 +88,21 @@ export default async function PublicUserPage({ params }: UserPageProps) {
     throw new Error(itemsError.message)
   }
 
+  if (reviewsError) {
+    throw new Error(reviewsError.message)
+  }
+
   const items = ((rawItems ?? []) as Item[]).filter((item) => isActiveStatus(item.status))
+  const reviews = (rawReviews ?? []) as Review[]
+  const ratedReviews = reviews.filter((review) => typeof review.rating === 'number')
+  const averageRating =
+    ratedReviews.length > 0
+      ? Number(
+          (
+            ratedReviews.reduce((total, review) => total + (review.rating ?? 0), 0) / ratedReviews.length
+          ).toFixed(1)
+        )
+      : null
   const favoriteIds = new Set<string>()
 
   if (user?.id && items.length) {
@@ -124,6 +154,32 @@ export default async function PublicUserPage({ params }: UserPageProps) {
             <p className="mt-1 text-sm text-slate-500">На ProDance с {projectDate}</p>
           </div>
         </header>
+
+        <section className="mt-5 rounded-[2rem] border border-slate-200/70 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-950">Отзывы</h2>
+          {reviews.length ? (
+            <div className="mt-3 space-y-3">
+              {averageRating !== null ? (
+                <p className="rounded-2xl bg-[#faf7f3] px-4 py-3 text-sm text-slate-700">
+                  Средняя оценка: {averageRating.toFixed(1)} ({ratedReviews.length})
+                </p>
+              ) : null}
+              {reviews.map((review) => (
+                <article key={review.id} className="rounded-2xl border border-slate-200/70 bg-[#faf7f3] px-4 py-3">
+                  <p className="text-sm font-medium text-slate-800">
+                    Оценка:{' '}
+                    {typeof review.rating === 'number' ? review.rating.toFixed(1) : 'Без оценки'}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {review.comment?.trim() ? review.comment : 'Пользователь не оставил комментарий.'}
+                  </p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-slate-500">У этого пользователя пока нет отзывов.</p>
+          )}
+        </section>
 
         <section className="mt-5">
           <h2 className="text-lg font-semibold text-slate-950">Объявления пользователя</h2>

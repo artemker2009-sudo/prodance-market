@@ -86,6 +86,7 @@ export default function FavoritesPage() {
       const { data: itemsData, error: itemsError } = await (supabase.from('items') as any)
         .select('id, title, price, image_urls, size, gender, category, description')
         .in('id', itemIds)
+        .eq('is_active', true)
 
       if (!active) {
         return

@@ -19,6 +19,30 @@ type ShareItemButtonProps = {
   itemUrl: string
 }
 
+type OwnerListingActionsProps = {
+  itemId: string
+  sellerId: string | null
+  initialIsActive: boolean
+}
+
+const archiveReasonOptions = [
+  {
+    value: 'Продал(а) на ProDance',
+    label: 'Продал(а) на ProDance',
+    accent: true,
+  },
+  {
+    value: 'Продал(а) на другой площадке',
+    label: 'Продал(а) на другой площадке',
+    accent: false,
+  },
+  {
+    value: 'Передумал(а) продавать / Другая причина',
+    label: 'Передумал(а) продавать / Другая причина',
+    accent: false,
+  },
+] as const
+
 export function FavoriteToggle({
   itemId,
   initialIsFavorite = false,
@@ -141,6 +165,188 @@ export function ShareItemButton({ itemUrl }: ShareItemButtonProps) {
       </button>
       {toastMessage ? (
         <div className="fixed bottom-24 left-1/2 z-[120] -translate-x-1/2 rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white shadow-lg">
+          {toastMessage}
+        </div>
+      ) : null}
+    </>
+  )
+}
+
+export function OwnerListingActions({
+  itemId,
+  sellerId,
+  initialIsActive,
+}: OwnerListingActionsProps) {
+  const router = useRouter()
+  const { session } = useAuth()
+  const userId = session?.user?.id ?? null
+
+  const [isActive, setIsActive] = useState(initialIsActive)
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false)
+  const [selectedReason, setSelectedReason] = useState<string>(archiveReasonOptions[0].value)
+  const [isArchiving, setIsArchiving] = useState(false)
+  const [isRepublishing, setIsRepublishing] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [toastMessage, setToastMessage] = useState('')
+
+  const toast = useMemo(
+    () => ({
+      success: (message: string) => setToastMessage(message),
+      error: (message: string) => setErrorMessage(message),
+    }),
+    []
+  )
+
+  useEffect(() => {
+    if (!toastMessage) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setToastMessage('')
+    }, 2600)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [toastMessage])
+
+  if (!sellerId || sellerId !== userId) {
+    return null
+  }
+
+  const handleArchiveItem = async (reason: string) => {
+    if (!reason) {
+      return
+    }
+
+    setIsArchiving(true)
+    setErrorMessage('')
+
+    const { error } = await (supabase.from('items') as any)
+      .update({ is_active: false, archive_reason: reason })
+      .eq('id', itemId)
+
+    setIsArchiving(false)
+
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+
+    setIsActive(false)
+    setIsArchiveModalOpen(false)
+    toast.success('Объявление снято с публикации')
+    router.refresh()
+  }
+
+  const handleRepublish = async () => {
+    setIsRepublishing(true)
+    setErrorMessage('')
+
+    const { error } = await (supabase.from('items') as any)
+      .update({ is_active: true, archive_reason: null })
+      .eq('id', itemId)
+
+    setIsRepublishing(false)
+
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+
+    setIsActive(true)
+    toast.success('Объявление снова опубликовано')
+    router.refresh()
+  }
+
+  return (
+    <>
+      <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
+        <h2 className="text-base font-semibold text-slate-900">Управление объявлением</h2>
+        {isActive ? (
+          <button
+            type="button"
+            onClick={() => setIsArchiveModalOpen(true)}
+            className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-xl border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
+          >
+            Снять с публикации
+          </button>
+        ) : (
+          <div className="mt-3 space-y-3">
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+              Объявление снято с публикации
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleRepublish()}
+              disabled={isRepublishing}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+            >
+              {isRepublishing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              <span>Опубликовать заново</span>
+            </button>
+          </div>
+        )}
+
+        {errorMessage ? (
+          <p className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">
+            {errorMessage}
+          </p>
+        ) : null}
+      </section>
+
+      {isArchiveModalOpen ? (
+        <div className="fixed inset-0 z-[130] flex items-end justify-center bg-slate-950/45 p-4 sm:items-center">
+          <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-2xl">
+            <h3 className="text-lg font-semibold text-slate-900">Почему вы снимаете объявление?</h3>
+            <div className="mt-4 space-y-2">
+              {archiveReasonOptions.map((option) => {
+                const isSelected = selectedReason === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setSelectedReason(option.value)}
+                    className={`w-full rounded-xl border px-4 py-3 text-left text-sm font-medium transition ${
+                      isSelected
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : option.accent
+                          ? 'border-fuchsia-200 bg-fuchsia-50 text-slate-800 hover:border-fuchsia-300'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIsArchiveModalOpen(false)}
+                disabled={isArchiving}
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleArchiveItem(selectedReason)}
+                disabled={isArchiving}
+                className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+              >
+                {isArchiving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                <span>Снять объявление</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {toastMessage ? (
+        <div className="fixed bottom-8 left-1/2 z-[140] -translate-x-1/2 rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white shadow-lg">
           {toastMessage}
         </div>
       ) : null}

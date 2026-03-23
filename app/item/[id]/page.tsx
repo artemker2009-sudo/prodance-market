@@ -3,7 +3,13 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft, BadgeCheck, MapPin, Star } from 'lucide-react'
 
 import { createSupabaseServerClient } from '../../lib/supabase-server'
-import { FavoriteToggle, QuickQuestionsSection, SellerContactButtons, ShareItemButton } from './item-actions'
+import {
+  FavoriteToggle,
+  OwnerListingActions,
+  QuickQuestionsSection,
+  SellerContactButtons,
+  ShareItemButton,
+} from './item-actions'
 import { ItemImageGallery } from './item-image-gallery'
 
 type ItemPageProps = {
@@ -23,6 +29,8 @@ type Item = {
   gender: string | null
   category: string | null
   description: string | null
+  is_active: boolean | null
+  archive_reason: string | null
 }
 
 type SellerProfile = {
@@ -33,8 +41,29 @@ type SellerProfile = {
   created_at: string
 }
 
+type ReviewRating = {
+  rating: number | null
+}
+
 function formatPrice(price: number) {
   return new Intl.NumberFormat('ru-RU').format(price)
+}
+
+function getReviewWord(count: number) {
+  const mod100 = count % 100
+  if (mod100 >= 11 && mod100 <= 14) {
+    return 'отзывов'
+  }
+
+  const mod10 = count % 10
+  if (mod10 === 1) {
+    return 'отзыв'
+  }
+  if (mod10 >= 2 && mod10 <= 4) {
+    return 'отзыва'
+  }
+
+  return 'отзывов'
 }
 
 function getRegistrationYear(dateValue: string | null | undefined) {
@@ -126,6 +155,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
   }
 
   let sellerProfile: SellerProfile | null = null
+  let sellerReviews: ReviewRating[] = []
   if (item?.seller_id) {
     const { data: seller, error: sellerError } = await (supabase.from('profiles') as any)
       .select('*')
@@ -137,6 +167,18 @@ export default async function ItemPage({ params }: ItemPageProps) {
     }
 
     sellerProfile = (seller as SellerProfile | null) ?? null
+
+    const { data: reviews, error: reviewsError } = await (supabase.from('reviews') as any)
+      .select('rating')
+      .eq('seller_id', item.seller_id)
+
+    if (reviewsError) {
+      throw new Error(reviewsError.message)
+    }
+
+    sellerReviews = ((reviews ?? []) as ReviewRating[]).filter(
+      (review) => typeof review.rating === 'number'
+    )
   }
 
   const sellerName = sellerProfile?.name?.trim() || 'Продавец'
@@ -144,7 +186,14 @@ export default async function ItemPage({ params }: ItemPageProps) {
   const sellerAvatarUrl = sellerProfile?.avatar_url?.trim() || null
   const sellerAvatarLetter = sellerName.charAt(0).toUpperCase()
   const sellerProfileHref = item.seller_id ? `/user/${item.seller_id}` : '#'
-  const sellerReviewsHref = item.seller_id ? `/user/${item.seller_id}#reviews` : '#'
+  const sellerReviewsHref = item.seller_id ? `/profile/${item.seller_id}/reviews` : '#'
+  const reviewsCount = sellerReviews.length
+  const averageRating =
+    reviewsCount > 0
+      ? Number(
+          (sellerReviews.reduce((total, review) => total + (review.rating ?? 0), 0) / reviewsCount).toFixed(1)
+        )
+      : null
   const publishedRelative = formatRelativeTime(item.created_at)
   const location = sellerProfile?.city?.trim() || 'Москва'
   const mapQuery = encodeURIComponent(location)
@@ -168,8 +217,8 @@ export default async function ItemPage({ params }: ItemPageProps) {
 
   return (
     <main className="min-h-screen bg-[#f6f7fb] pb-16 text-slate-950">
-      <section className="mx-auto w-full max-w-[720px] px-4 pb-10 pt-4">
-        <header className="mb-4">
+      <section className="mx-auto w-full max-w-[720px] space-y-4 px-4 pb-10 pt-4">
+        <header>
           <Link
             href="/"
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-900 shadow-sm"
@@ -179,13 +228,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
           </Link>
         </header>
 
-        <section className="rounded-2xl bg-white p-4 shadow-sm">
-          <p className="text-3xl font-bold text-slate-900">{formatPrice(item.price)} ₽</p>
-          <h1 className="mt-2 text-xl text-slate-800">{item.title}</h1>
-          <p className="mt-2 text-sm text-slate-400">Опубликовано {publishedRelative}</p>
-        </section>
-
-        <section className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm">
+        <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
           {item.image_urls && item.image_urls.length > 0 ? (
             <ItemImageGallery
               imageUrls={item.image_urls}
@@ -207,7 +250,18 @@ export default async function ItemPage({ params }: ItemPageProps) {
           )}
         </section>
 
-        <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
+        <section className="rounded-2xl bg-white p-4 shadow-sm">
+          <p className="text-3xl font-bold text-slate-900">{formatPrice(item.price)} ₽</p>
+          <h1 className="mt-1 text-lg text-slate-800">{item.title}</h1>
+          <p className="mt-1 text-sm text-slate-500">{publishedRelative}</p>
+          {item.is_active === false ? (
+            <p className="mt-3 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+              Объявление снято с публикации
+            </p>
+          ) : null}
+        </section>
+
+        <section className="rounded-2xl bg-white p-4 shadow-sm">
           <h2 className="text-xl font-semibold mb-4">Местоположение</h2>
           <div className="flex items-start gap-3">
             <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
@@ -225,7 +279,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
           </div>
         </section>
 
-        <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
+        <section className="rounded-2xl bg-white p-4 shadow-sm">
           <h2 className="text-xl font-semibold mb-4">Характеристики</h2>
           <ul className="space-y-2 text-sm text-slate-700">
             {specs.map((spec) => (
@@ -237,18 +291,24 @@ export default async function ItemPage({ params }: ItemPageProps) {
           </ul>
         </section>
 
-        <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
+        <section className="rounded-2xl bg-white p-4 shadow-sm">
           <h2 className="text-xl font-semibold mb-4">Описание</h2>
           <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
             {item.description || 'Продавец пока не добавил описание для этого товара.'}
           </p>
         </section>
 
-        <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
+        <section className="rounded-2xl bg-white p-4 shadow-sm">
           <QuickQuestionsSection itemId={item.id} sellerId={item.seller_id} />
         </section>
 
-        <section className="mt-4 bg-white p-4 rounded-2xl shadow-sm">
+        <OwnerListingActions
+          itemId={item.id}
+          sellerId={item.seller_id}
+          initialIsActive={item.is_active !== false}
+        />
+
+        <section className="bg-white p-4 rounded-2xl shadow-sm">
           <div className="flex items-start gap-4">
             <div className="flex shrink-0 flex-col items-center gap-2">
               <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-lg font-semibold text-slate-700">
@@ -271,20 +331,26 @@ export default async function ItemPage({ params }: ItemPageProps) {
                 <BadgeCheck className="h-5 w-5 shrink-0 text-blue-500" />
               </Link>
 
-              <div className="mt-2 flex items-center gap-0.5 text-amber-400">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <Star key={`seller-star-${index}`} className="h-4 w-4 fill-current" />
-                ))}
-              </div>
-
-              <Link
-                href={sellerReviewsHref}
-                className="mt-1 inline-flex items-center gap-1 text-sm text-blue-500 hover:underline"
-              >
-                <span>5.0</span>
-                <span>14 отзывов</span>
-                <span>Читать отзывы</span>
-              </Link>
+              {item.seller_id ? (
+                <Link
+                  href={sellerReviewsHref}
+                  className="mt-2 inline-flex items-center gap-1 text-sm hover:underline"
+                >
+                  {reviewsCount > 0 && averageRating !== null ? (
+                    <>
+                      <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                      <span className="font-medium text-slate-900">{averageRating.toFixed(1)}</span>
+                      <span className="text-slate-600">
+                        {reviewsCount} {getReviewWord(reviewsCount)}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-slate-400">Нет отзывов</span>
+                  )}
+                </Link>
+              ) : (
+                <p className="mt-2 text-sm text-slate-400">Нет отзывов</p>
+              )}
 
               <p className="mt-1 text-sm text-slate-500">На ProDance с {registrationYear ?? 'недавно'}</p>
             </div>

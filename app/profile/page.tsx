@@ -7,7 +7,6 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Bell,
   Headphones,
-  Heart,
   LogOut,
   MapPin,
   Settings2,
@@ -29,6 +28,13 @@ type Item = {
   description: string | null
 }
 
+type Review = {
+  id: string
+  rating: number | null
+  comment: string | null
+  created_at: string | null
+}
+
 const tabs = [
   { key: 'my', label: 'Мои объявления' },
   { key: 'favorites', label: 'Избранное' },
@@ -48,7 +54,9 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]['key']>('my')
   const [myItems, setMyItems] = useState<Item[]>([])
   const [favoriteItems, setFavoriteItems] = useState<Item[]>([])
+  const [reviews, setReviews] = useState<Review[]>([])
   const [loadingItems, setLoadingItems] = useState(true)
+  const [loadingReviews, setLoadingReviews] = useState(true)
   const [stats, setStats] = useState({
     published: 0,
     favorites: 0,
@@ -100,6 +108,18 @@ export default function ProfilePage() {
     return 'Профиль'
   }, [user])
   const initial = displayName[0]?.toUpperCase() ?? 'P'
+  const ratedReviews = useMemo(
+    () => reviews.filter((review) => typeof review.rating === 'number'),
+    [reviews]
+  )
+  const averageRating = useMemo(() => {
+    if (!ratedReviews.length) {
+      return null
+    }
+
+    const total = ratedReviews.reduce((sum, review) => sum + (review.rating ?? 0), 0)
+    return Number((total / ratedReviews.length).toFixed(1))
+  }, [ratedReviews])
 
   useEffect(() => {
     if (loading || user) {
@@ -143,6 +163,43 @@ export default function ProfilePage() {
     }
 
     void loadStats()
+
+    return () => {
+      active = false
+    }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!user?.id) {
+      return
+    }
+
+    let active = true
+
+    const loadReviews = async () => {
+      setLoadingReviews(true)
+
+      const { data, error: reviewsError } = await (supabase.from('reviews') as any)
+        .select('id, rating, comment, created_at')
+        .eq('seller_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (!active) {
+        return
+      }
+
+      if (reviewsError) {
+        setError(reviewsError.message)
+        setReviews([])
+        setLoadingReviews(false)
+        return
+      }
+
+      setReviews((data ?? []) as Review[])
+      setLoadingReviews(false)
+    }
+
+    void loadReviews()
 
     return () => {
       active = false
@@ -434,10 +491,33 @@ export default function ProfilePage() {
         </section>
 
         <section className="rounded-[2rem] border border-slate-200/70 bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-3 rounded-[1.5rem] bg-[#faf7f3] px-4 py-3 text-sm text-slate-500">
-            <Heart className="h-4 w-4" />
-            <span>Коллекции, отзывы и персонализация появятся на следующих итерациях.</span>
-          </div>
+          <h2 className="text-base font-semibold text-slate-950">Отзывы о вас</h2>
+          {loadingReviews ? (
+            <p className="mt-3 rounded-[1.5rem] bg-[#faf7f3] px-4 py-3 text-sm text-slate-500">Загружаем отзывы...</p>
+          ) : reviews.length ? (
+            <div className="mt-3 space-y-3">
+              {averageRating !== null ? (
+                <p className="rounded-[1.5rem] bg-[#faf7f3] px-4 py-3 text-sm text-slate-700">
+                  Средняя оценка: {averageRating.toFixed(1)} ({ratedReviews.length})
+                </p>
+              ) : null}
+              {reviews.map((review) => (
+                <article key={review.id} className="rounded-[1.5rem] border border-slate-200/70 bg-[#faf7f3] px-4 py-3">
+                  <p className="text-sm font-medium text-slate-800">
+                    Оценка:{' '}
+                    {typeof review.rating === 'number' ? review.rating.toFixed(1) : 'Без оценки'}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {review.comment?.trim() ? review.comment : 'Пользователь не оставил комментарий.'}
+                  </p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 rounded-[1.5rem] bg-[#faf7f3] px-4 py-3 text-sm text-slate-500">
+              У этого пользователя пока нет отзывов.
+            </p>
+          )}
 
           {error ? (
             <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">

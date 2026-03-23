@@ -89,7 +89,10 @@ export default async function HomePage() {
   const supabase = await createSupabaseServerClient()
   const [{ data: authData }, { data, error }] = await Promise.all([
     supabase.auth.getUser(),
-    (supabase.from('items') as any).select('*').order('created_at', { ascending: false }),
+    (supabase.from('items') as any)
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false }),
   ])
   const userId = authData.user?.id ?? null
   const favoriteIds = new Set<string>()

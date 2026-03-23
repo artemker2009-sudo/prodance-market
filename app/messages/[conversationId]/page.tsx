@@ -217,6 +217,15 @@ export default function ConversationPage() {
   const currentUserName =
     (conversation?.buyer_id === user?.id ? conversation?.buyer?.name : conversation?.seller?.name)?.trim() ||
     'Пользователь'
+  const canLeaveReview =
+    Boolean(user?.id) &&
+    Boolean(conversation?.item_id) &&
+    Boolean(conversation?.seller_id) &&
+    user?.id === conversation?.buyer_id
+  const reviewHref =
+    conversation?.seller_id && conversation?.item_id
+      ? `/reviews/new?seller_id=${encodeURIComponent(conversation.seller_id)}&item_id=${encodeURIComponent(conversation.item_id)}`
+      : '/reviews/new'
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -301,18 +310,28 @@ export default function ConversationPage() {
     <main className="flex min-h-screen flex-col bg-[#faf7f3] pb-28 text-slate-950 md:pb-10">
       <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-[#faf7f3]/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-md flex-col px-4 py-3">
-          <div className="flex items-center gap-3 pb-3">
+          <div className="flex items-center justify-between gap-3 pb-3">
             <Link
               href="/messages"
               className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700"
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>
-            <div>
-              <p className="text-xs tracking-[0.12em] text-slate-500 uppercase">Диалог</p>
-              <h1 className="text-base font-semibold text-slate-950">
-                {interlocutor?.name || 'Пользователь'}
-              </h1>
+            <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs tracking-[0.12em] text-slate-500 uppercase">Диалог</p>
+                <h1 className="truncate text-base font-semibold text-slate-950">
+                  {interlocutor?.name || 'Пользователь'}
+                </h1>
+              </div>
+              {canLeaveReview ? (
+                <Link
+                  href={reviewHref}
+                  className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  Оставить отзыв
+                </Link>
+              ) : null}
             </div>
           </div>
 
