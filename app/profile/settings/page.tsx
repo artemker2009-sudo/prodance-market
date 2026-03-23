@@ -147,6 +147,23 @@ export default function ProfileSettingsPage() {
     () => `tg://resolve?domain=prodance_market_bot&start=${user?.id ?? ''}`,
     [user?.id]
   )
+  const pushBlockedInstruction = (
+    <details className="mt-2">
+      <summary className="cursor-pointer mt-3 text-sm text-blue-500 hover:underline">
+        Кнопка не работает? (Инструкция)
+      </summary>
+      <div className="p-3 bg-slate-50 rounded-lg text-sm text-slate-600 mt-2 flex flex-col gap-1">
+        <p>
+          Если вы ранее нажали «Не разрешить», браузер заблокировал эту кнопку. Чтобы включить
+          уведомления вручную:
+        </p>
+        <p>1. Зайдите в Настройки вашего телефона.</p>
+        <p>2. Найдите браузер (Safari/Chrome) или приложение ProDance.</p>
+        <p>3. Перейдите в раздел «Уведомления» и разрешите их.</p>
+        <p>4. Обновите эту страницу.</p>
+      </div>
+    </details>
+  )
 
   const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -485,42 +502,44 @@ export default function ProfileSettingsPage() {
             </p>
 
             <div className="mt-4 space-y-3">
-              <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-[#faf7f3] px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Telegram</p>
-                  <p className="text-xs text-slate-500">Мгновенные уведомления через бота</p>
-                </div>
-                {telegramChatId ? (
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                      Подключено
-                    </span>
+              <div className="rounded-2xl border border-slate-200/80 bg-[#faf7f3] px-4 py-3">
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Telegram</p>
+                    <p className="text-xs text-slate-500">Мгновенные уведомления через бота</p>
+                    {telegramChatId ? (
+                      <span className="mt-2 inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        Подключено
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {telegramChatId ? (
                     <button
                       type="button"
                       onClick={() => void handleTelegramDisconnect()}
                       disabled={isDisconnectingTelegram}
-                      className="text-xs font-semibold text-rose-600 transition hover:text-rose-700 disabled:cursor-not-allowed disabled:text-slate-400"
+                      className="inline-flex h-9 w-fit items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isDisconnectingTelegram ? 'Отключение...' : 'Отключить'}
                     </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center">
+                  ) : (
                     <Link
                       href={telegramBotLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex h-9 items-center justify-center gap-1 rounded-full bg-sky-500 px-3 text-xs font-semibold text-white transition hover:bg-sky-600"
+                      className="inline-flex h-9 w-fit items-center justify-center gap-1 rounded-full bg-sky-500 px-3 text-xs font-semibold text-white transition hover:bg-sky-600"
                     >
                       <Send className="h-3.5 w-3.5" />
                       Подключить Telegram
                     </Link>
-                  </div>
-                )}
-                <p className="text-xs text-slate-400 mt-2 leading-tight">
-                  ⚠️ Telegram в России может работать нестабильно (иногда требуется VPN). Если
-                  уведомления не приходят, рекомендуем использовать Push.
-                </p>
+                  )}
+
+                  <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg leading-tight">
+                    ⚠️ Telegram в России может работать нестабильно (иногда требуется VPN). Если
+                    уведомления не приходят, рекомендуем использовать Push.
+                  </p>
+                </div>
               </div>
 
               <div className="rounded-2xl border border-slate-200/80 bg-[#faf7f3] px-4 py-3">
@@ -555,6 +574,7 @@ export default function ProfileSettingsPage() {
                         {isUnsubscribingPush ? 'Отключение...' : 'Отключить'}
                       </button>
                     </div>
+                    {pushBlockedInstruction}
                   </div>
                 ) : permissionStatus === 'default' ||
                   permissionStatus === 'unknown' ||
@@ -572,6 +592,7 @@ export default function ProfileSettingsPage() {
                         ? 'Push-уведомления отключены. Нажмите, чтобы включить снова.'
                         : 'Нажмите «Разрешить» во всплывающем окне браузера'}
                     </p>
+                    {pushBlockedInstruction}
                   </div>
                 ) : (
                   <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
