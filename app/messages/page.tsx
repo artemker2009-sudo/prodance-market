@@ -58,6 +58,7 @@ export default function MessagesPage() {
   const user = session?.user ?? null
   const [chats, setChats] = useState<Chat[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   useEffect(() => {
     if (loading || user) {
@@ -75,13 +76,22 @@ export default function MessagesPage() {
     let active = true
     const load = async () => {
       setIsLoading(true)
+      setFetchError(null)
       try {
-        const { data: conversations } = await (supabase.from('conversations') as any)
-          .select(
-            '*, item:items(id, title, image_urls), buyer:profiles!conversations_buyer_id_fkey(id, name, avatar_url), seller:profiles!conversations_seller_id_fkey(id, name, avatar_url)'
-          )
+        const { data: conversations, error } = await (supabase.from('conversations') as any)
+          .select('*, item:items(*)')
           .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
           .order('updated_at', { ascending: false })
+
+        if (error) {
+          console.error('Ошибка загрузки чатов:', error)
+          if (active) {
+            setFetchError(error.message)
+            setChats([])
+            setIsLoading(false)
+          }
+          return
+        }
 
         const rows = (conversations ?? []) as ConversationRow[]
         const conversationIds = rows.map((row) => row.id)
@@ -129,11 +139,13 @@ export default function MessagesPage() {
 
         if (active) {
           setChats(mapped)
+          setFetchError(null)
           setIsLoading(false)
         }
       } catch (error) {
         console.error('Ошибка загрузки диалогов:', error)
         if (active) {
+          setFetchError(error instanceof Error ? error.message : 'Неизвестная ошибка')
           setChats([])
           setIsLoading(false)
         }
@@ -168,6 +180,8 @@ export default function MessagesPage() {
         <section className="rounded-[2rem] border border-slate-200/70 bg-white shadow-sm">
           {isLoading ? (
             <div className="px-6 py-12 text-center text-sm text-slate-500">Загружаем диалоги...</div>
+          ) : fetchError ? (
+            <div className="text-red-500 p-4">Ошибка: {fetchError}</div>
           ) : chats.length ? (
             <ul className="divide-y divide-slate-200/70">
               {chats.map((chat) => (
