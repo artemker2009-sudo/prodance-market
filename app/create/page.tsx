@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Star } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
@@ -9,6 +10,14 @@ import { supabase } from '../lib/supabase'
 
 const categories = ['Турнирное', 'Тренировочное', 'Обувь', 'Аксессуары'] as const
 const genders = ['Мужское', 'Женское', 'Детское'] as const
+const LocationPickerMap = dynamic(() => import('../components/LocationPickerMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-64 animate-pulse rounded-xl border border-slate-200 bg-slate-100 text-sm text-slate-500 flex items-center justify-center">
+      Загружаем карту...
+    </div>
+  ),
+})
 
 export default function CreatePage() {
   const router = useRouter()
@@ -18,6 +27,9 @@ export default function CreatePage() {
   const [previewUrls, setPreviewUrls] = useState<string[]>([])
   const [mainPhotoIndex, setMainPhotoIndex] = useState(0)
   const previewUrlsRef = useRef<string[]>([])
+  const [address, setAddress] = useState('')
+  const [latitude, setLatitude] = useState<number | null>(null)
+  const [longitude, setLongitude] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -41,10 +53,16 @@ export default function CreatePage() {
     const size = formData.get('size')?.toString().trim() ?? ''
     const priceValue = formData.get('price')?.toString().trim() ?? ''
     const description = formData.get('description')?.toString().trim() ?? ''
+    const normalizedAddress = address.trim()
     const price = Number(priceValue)
 
     if (!title || !priceValue || !size) {
       setError('Заполните все поля')
+      return
+    }
+
+    if (!normalizedAddress) {
+      setError('Укажите адрес, где можно забрать товар')
       return
     }
 
@@ -112,6 +130,9 @@ export default function CreatePage() {
         size,
         price,
         description: description || null,
+        address: normalizedAddress,
+        latitude,
+        longitude,
         image_urls: uploadedUrls,
         seller_id: user.id,
       })
@@ -345,6 +366,47 @@ export default function CreatePage() {
               placeholder="Состояние, бренд, ткань, почему продаёте и любые важные детали."
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-base outline-none placeholder:text-slate-400 focus:border-slate-950 focus:bg-white"
             />
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900">Место встречи / Где забрать товар</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Укажите адрес и поставьте точку на карте.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="address" className="mb-2 block text-sm font-medium text-slate-600">
+                Адрес
+              </label>
+              <input
+                id="address"
+                name="address"
+                type="text"
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+                placeholder="Укажите адрес (город, улица, дом)"
+                className="h-14 w-full rounded-xl border border-slate-200 bg-white px-4 text-base outline-none placeholder:text-slate-400 focus:border-slate-950"
+                required
+              />
+            </div>
+            <LocationPickerMap
+              latitude={latitude}
+              longitude={longitude}
+              onChange={({ latitude: nextLatitude, longitude: nextLongitude }) => {
+                setLatitude(nextLatitude)
+                setLongitude(nextLongitude)
+              }}
+            />
+            {typeof latitude === 'number' && typeof longitude === 'number' ? (
+              <p className="text-xs text-slate-500">
+                Выбранная точка: {latitude.toFixed(6)}, {longitude.toFixed(6)}
+              </p>
+            ) : (
+              <p className="text-xs text-slate-500">
+                Точка на карте пока не выбрана, адрес все равно сохранится.
+              </p>
+            )}
           </div>
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}

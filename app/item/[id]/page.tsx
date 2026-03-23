@@ -29,6 +29,9 @@ type Item = {
   gender: string | null
   category: string | null
   description: string | null
+  address: string | null
+  latitude: number | null
+  longitude: number | null
   is_active: boolean | null
   archive_reason: string | null
 }
@@ -195,9 +198,18 @@ export default async function ItemPage({ params }: ItemPageProps) {
         )
       : null
   const publishedRelative = formatRelativeTime(item.created_at)
-  const location = sellerProfile?.city?.trim() || 'Москва'
-  const mapQuery = encodeURIComponent(location)
-  const mapHref = `https://yandex.ru/maps/?text=${mapQuery}`
+  const hasCoordinates =
+    typeof item.latitude === 'number' &&
+    Number.isFinite(item.latitude) &&
+    typeof item.longitude === 'number' &&
+    Number.isFinite(item.longitude)
+  const itemAddress = item.address?.trim() || null
+  const location = itemAddress || sellerProfile?.city?.trim() || 'Место не указано'
+  const mapHref = hasCoordinates
+    ? `https://yandex.ru/maps/?pt=${item.longitude},${item.latitude}&z=16&l=map`
+    : location !== 'Место не указано'
+      ? `https://yandex.ru/maps/?text=${encodeURIComponent(location)}`
+      : null
   let initialIsFavorite = false
 
   if (user?.id) {
@@ -267,14 +279,16 @@ export default async function ItemPage({ params }: ItemPageProps) {
             <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
             <div>
               <p className="text-base text-slate-800">{location}</p>
-              <a
-                href={mapHref}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-1 inline-block text-sm text-blue-500 hover:underline"
-              >
-                Показать на карте
-              </a>
+              {mapHref ? (
+                <a
+                  href={mapHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-block text-sm text-blue-500 hover:underline"
+                >
+                  Открыть на карте
+                </a>
+              ) : null}
             </div>
           </div>
         </section>
