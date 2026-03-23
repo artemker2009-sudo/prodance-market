@@ -25,10 +25,19 @@ export function getSafeRedirectPath(redirectTo: string | null | undefined, fallb
   }
 }
 
-export function buildLoginRedirectHref(pathname: string) {
+export function buildLoginRedirectHref(
+  pathname: string,
+  options?: {
+    reason?: string
+  }
+) {
   const searchParams = new URLSearchParams({
     redirectTo: pathname,
   })
+
+  if (options?.reason) {
+    searchParams.set('reason', options.reason)
+  }
 
   return `/login?${searchParams.toString()}`
 }

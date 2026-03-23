@@ -91,7 +91,7 @@ export function StartConversationButton({
 
   const handleStartConversation = async () => {
     if (!userId) {
-      router.push(buildLoginRedirectHref(`/item/${itemId}`))
+      router.push(buildLoginRedirectHref(`/item/${itemId}`, { reason: 'message' }))
       return
     }
 

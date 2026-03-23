@@ -137,6 +137,24 @@ export default function RegisterPage() {
     () => getSafeRedirectPath(searchParams.get('redirectTo')),
     [searchParams]
   )
+  const reason = searchParams.get('reason')
+  const isMessageReason = reason === 'message'
+  const loginHref = useMemo(() => {
+    const params = new URLSearchParams()
+    const rawRedirectTo = searchParams.get('redirectTo')
+    const rawReason = searchParams.get('reason')
+
+    if (rawRedirectTo) {
+      params.set('redirectTo', rawRedirectTo)
+    }
+
+    if (rawReason) {
+      params.set('reason', rawReason)
+    }
+
+    const query = params.toString()
+    return query ? `/login?${query}` : '/login'
+  }, [searchParams])
 
   useEffect(() => {
     if (!isCitySheetOpen) {
@@ -244,10 +262,18 @@ export default function RegisterPage() {
               <p className="text-sm font-medium tracking-[0.18em] text-slate-500 uppercase">
                 New account
               </p>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-950">Регистрация</h1>
-              <p className="text-sm leading-6 text-slate-500">
-                Создайте аккаунт по номеру телефона и выберите город.
-              </p>
+              {isMessageReason ? (
+                <p className="mb-4 text-center text-lg font-medium text-slate-950">
+                  Прежде чем написать, сначала зарегистрируйтесь 😊
+                </p>
+              ) : (
+                <>
+                  <h1 className="text-3xl font-bold tracking-tight text-slate-950">Регистрация</h1>
+                  <p className="text-sm leading-6 text-slate-500">
+                    Создайте аккаунт по номеру телефона и выберите город.
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
@@ -384,7 +410,7 @@ export default function RegisterPage() {
 
           <p className="text-center text-sm text-slate-500">
             Уже есть аккаунт?{' '}
-            <Link href="/login" className="font-semibold text-slate-950">
+            <Link href={loginHref} className="font-semibold text-slate-950">
               Войти
             </Link>
           </p>

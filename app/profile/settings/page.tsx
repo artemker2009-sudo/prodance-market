@@ -39,6 +39,7 @@ export default function ProfileSettingsPage() {
     'unknown'
   )
   const [notificationsError, setNotificationsError] = useState('')
+  const [hasNotificationsLoadError, setHasNotificationsLoadError] = useState(false)
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
   const [isDisconnectingTelegram, setIsDisconnectingTelegram] = useState(false)
   const [isPushSubscribed, setIsPushSubscribed] = useState(false)
@@ -104,6 +105,7 @@ export default function ProfileSettingsPage() {
     let isActive = true
     setIsLoadingNotifications(true)
     setNotificationsError('')
+    setHasNotificationsLoadError(false)
 
     const loadNotificationSettings = async () => {
       try {
@@ -112,7 +114,7 @@ export default function ProfileSettingsPage() {
           .eq('id', user.id)
           .maybeSingle()
 
-        if (error) {
+        if (error && error.code !== 'PGRST116') {
           throw error
         }
 
@@ -122,10 +124,23 @@ export default function ProfileSettingsPage() {
         }
       } catch (notificationError) {
         if (isActive) {
-          const message =
-            notificationError instanceof Error
-              ? notificationError.message
-              : 'Не удалось загрузить настройки уведомлений'
+          setHasNotificationsLoadError(true)
+          const message = (() => {
+            if (notificationError instanceof Error) {
+              return notificationError.message
+            }
+
+            if (
+              notificationError &&
+              typeof notificationError === 'object' &&
+              'message' in notificationError &&
+              typeof notificationError.message === 'string'
+            ) {
+              return notificationError.message
+            }
+
+            return 'Не удалось загрузить настройки уведомлений'
+          })()
           setNotificationsError(message)
         }
       } finally {
@@ -153,14 +168,10 @@ export default function ProfileSettingsPage() {
         Кнопка не работает? (Инструкция)
       </summary>
       <div className="p-3 bg-slate-50 rounded-lg text-sm text-slate-600 mt-2 flex flex-col gap-1">
-        <p>
-          Если вы ранее нажали «Не разрешить», браузер заблокировал эту кнопку. Чтобы включить
-          уведомления вручную:
-        </p>
         <p>1. Зайдите в Настройки вашего телефона.</p>
-        <p>2. Найдите браузер (Safari/Chrome) или приложение ProDance.</p>
-        <p>3. Перейдите в раздел «Уведомления» и разрешите их.</p>
-        <p>4. Обновите эту страницу.</p>
+        <p>2. Перейдите в раздел «Уведомления».</p>
+        <p>3. Найдите приложение ProDance и нажмите на него.</p>
+        <p>4. Разрешите уведомления и обновите эту страницу.</p>
       </div>
     </details>
   )
@@ -605,7 +616,7 @@ export default function ProfileSettingsPage() {
             {isLoadingNotifications ? (
               <p className="mt-3 text-xs text-slate-500">Загрузка статуса уведомлений...</p>
             ) : null}
-            {notificationsError ? (
+            {notificationsError && (!isLoadingNotifications || !hasNotificationsLoadError) ? (
               <p className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">
                 {notificationsError}
               </p>

@@ -65,6 +65,24 @@ export default function LoginPage() {
     () => getSafeRedirectPath(searchParams.get('redirectTo')),
     [searchParams]
   )
+  const reason = searchParams.get('reason')
+  const isMessageReason = reason === 'message'
+  const registerHref = useMemo(() => {
+    const params = new URLSearchParams()
+    const rawRedirectTo = searchParams.get('redirectTo')
+    const rawReason = searchParams.get('reason')
+
+    if (rawRedirectTo) {
+      params.set('redirectTo', rawRedirectTo)
+    }
+
+    if (rawReason) {
+      params.set('reason', rawReason)
+    }
+
+    const query = params.toString()
+    return query ? `/register?${query}` : '/register'
+  }, [searchParams])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -127,10 +145,18 @@ export default function LoginPage() {
               Welcome back
             </p>
             <div className="space-y-2">
-              <h1 className="text-3xl font-bold tracking-tight text-slate-950">Вход</h1>
-              <p className="text-sm leading-6 text-slate-500">
-                Войдите по номеру телефона и паролю.
-              </p>
+              {isMessageReason ? (
+                <p className="mb-4 text-center text-lg font-medium text-slate-950">
+                  Прежде чем написать, сначала зарегистрируйтесь 😊
+                </p>
+              ) : (
+                <>
+                  <h1 className="text-3xl font-bold tracking-tight text-slate-950">Вход</h1>
+                  <p className="text-sm leading-6 text-slate-500">
+                    Войдите по номеру телефона и паролю.
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
@@ -191,7 +217,7 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-slate-500">
             Нет аккаунта?{' '}
-            <Link href="/register" className="font-semibold text-slate-950">
+            <Link href={registerHref} className="font-semibold text-slate-950">
               Зарегистрироваться
             </Link>
           </p>

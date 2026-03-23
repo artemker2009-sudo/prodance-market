@@ -60,6 +60,7 @@ export default function ConversationPage() {
   const [text, setText] = useState('')
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
+  const [isConversationLoaded, setIsConversationLoaded] = useState(false)
 
   useEffect(() => {
     if (loading || user) {
@@ -80,60 +81,76 @@ export default function ConversationPage() {
 
     const loadChat = async () => {
       setError('')
+      setIsConversationLoaded(false)
+      try {
+        const { data: conversationData, error: conversationError } = await (supabase.from(
+          'conversations'
+        ) as any)
+          .select(
+            'id, item_id, buyer_id, seller_id, item:items!conversations_item_id_fkey(id, title, price, image_urls), buyer:profiles!conversations_buyer_id_fkey(id, name), seller:profiles!conversations_seller_id_fkey(id, name)'
+          )
+          .eq('id', conversationId)
+          .maybeSingle()
 
-      const { data: conversationData, error: conversationError } = await (supabase.from(
-        'conversations'
-      ) as any)
-        .select(
-          'id, item_id, buyer_id, seller_id, item:items(id, title, price, image_urls), buyer:profiles!conversations_buyer_id_fkey(id, name), seller:profiles!conversations_seller_id_fkey(id, name)'
-        )
-        .eq('id', conversationId)
-        .maybeSingle()
+        if (!active) {
+          return
+        }
 
-      if (!active) {
-        return
+        if (
+          conversationError ||
+          !conversationData ||
+          (conversationData.buyer_id !== user.id && conversationData.seller_id !== user.id)
+        ) {
+          setError('Диалог не найден или недоступен')
+          setConversation(null)
+          setMessages([])
+          return
+        }
+
+        setConversation(conversationData as Conversation)
+        const isBuyer = conversationData.buyer_id === user.id
+        const partner = isBuyer ? conversationData.seller : conversationData.buyer
+
+        const { data: messageRows } = await (supabase.from('messages') as any)
+          .select('id, sender_id, text, is_read, created_at')
+          .eq('conversation_id', conversationId)
+          .order('created_at', { ascending: true })
+
+        if (!active) {
+          return
+        }
+
+        const resolvedName = (partner as { name?: string } | null)?.name
+        if (resolvedName) {
+          setPartnerName(resolvedName)
+        }
+
+        setMessages((messageRows ?? []) as Message[])
+
+        await (supabase.from('messages') as any)
+          .update({ is_read: true })
+          .eq('conversation_id', conversationId)
+          .neq('sender_id', user.id)
+          .eq('is_read', false)
+      } catch (loadError) {
+        if (!active) {
+          return
+        }
+
+        setConversation(null)
+        setMessages([])
+        setError(loadError instanceof Error ? loadError.message : 'Не удалось загрузить диалог')
+      } finally {
+        if (active) {
+          setIsConversationLoaded(true)
+        }
       }
-
-      if (
-        conversationError ||
-        !conversationData ||
-        (conversationData.buyer_id !== user.id && conversationData.seller_id !== user.id)
-      ) {
-        setError('Диалог не найден или недоступен')
-        return
-      }
-
-      setConversation(conversationData as Conversation)
-      const isBuyer = conversationData.buyer_id === user.id
-      const partner = isBuyer ? conversationData.seller : conversationData.buyer
-
-      const { data: messageRows } = await (supabase.from('messages') as any)
-        .select('id, sender_id, text, is_read, created_at')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true })
-
-      if (!active) {
-        return
-      }
-
-      const resolvedName = (partner as { name?: string } | null)?.name
-      if (resolvedName) {
-        setPartnerName(resolvedName)
-      }
-
-      setMessages((messageRows ?? []) as Message[])
-
-      await (supabase.from('messages') as any)
-        .update({ is_read: true })
-        .eq('conversation_id', conversationId)
-        .neq('sender_id', user.id)
-        .eq('is_read', false)
     }
 
     void loadChat()
 
     const channel = supabase
-      .channel(`messages-${conversationId}`)
+      .channel(`chat_${conversationId}`)
       .on(
         'postgres_changes',
         {
@@ -144,7 +161,13 @@ export default function ConversationPage() {
         },
         (payload) => {
           const inserted = payload.new as Message
-          setMessages((prev) => [...prev, inserted])
+          setMessages((prev) => {
+            if (prev.some((message) => message.id === inserted.id)) {
+              return prev
+            }
+
+            return [...prev, inserted]
+          })
         }
       )
       .subscribe()
@@ -161,6 +184,7 @@ export default function ConversationPage() {
   )
   const item = conversation?.item
   const hasItem = hasConversationItem(item)
+  const isItemUnavailable = conversation?.item === null
   const itemImageUrl = hasItem && Array.isArray(item.image_urls) ? item.image_urls[0] ?? null : null
   const itemTitle = hasItem ? item.title?.trim() || 'Без названия' : 'Объявление недоступно'
   const itemPrice =
@@ -267,7 +291,7 @@ export default function ConversationPage() {
 
           {hasItem ? (
             <Link
-              href={`/item/${item.id}`}
+              href={`/items/${item.id}`}
               className="z-30 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
             >
               <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-200">
@@ -290,13 +314,15 @@ export default function ConversationPage() {
               </div>
               <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
             </Link>
-          ) : (
+          ) : isConversationLoaded && isItemUnavailable ? (
             <div className="z-30 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
               <div className="h-12 w-12 shrink-0 rounded-lg bg-slate-200" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-slate-500">Объявление недоступно</p>
               </div>
             </div>
+          ) : (
+            <div className="z-30 h-[68px] rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-sm" />
           )}
         </div>
       </header>
