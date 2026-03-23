@@ -262,7 +262,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
           )}
         </section>
 
-        <section className="rounded-2xl bg-white p-4 shadow-sm">
+        <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
           <p className="text-3xl font-bold text-slate-900">{formatPrice(item.price)} ₽</p>
           <h1 className="mt-1 text-lg text-slate-800">{item.title}</h1>
           <p className="mt-1 text-sm text-slate-500">{publishedRelative}</p>

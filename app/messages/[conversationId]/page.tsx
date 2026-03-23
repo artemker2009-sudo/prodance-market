@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, ChevronRight, Send } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Send, Trash2 } from 'lucide-react'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { useAuth } from '../../components/AuthProvider'
@@ -48,6 +48,13 @@ function formatPrice(price: number) {
   return new Intl.NumberFormat('ru-RU').format(price)
 }
 
+function formatMessageTime(value: string) {
+  return new Date(value).toLocaleTimeString('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export default function ConversationPage() {
   const router = useRouter()
   const routeParams = useParams<{ conversationId: string }>()
@@ -60,6 +67,12 @@ export default function ConversationPage() {
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
   const [isConversationLoaded, setIsConversationLoaded] = useState(false)
+  const toast = useMemo(
+    () => ({
+      error: (message: string) => setError(message),
+    }),
+    []
+  )
 
   useEffect(() => {
     if (loading || user) {
@@ -194,6 +207,13 @@ export default function ConversationPage() {
           })
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'messages' },
+        (payload) => {
+          setMessages((prev) => prev.filter((m) => m.id !== payload.old.id))
+        }
+      )
       .subscribe()
 
     return () => {
@@ -298,6 +318,32 @@ export default function ConversationPage() {
     }
   }
 
+  const handleDeleteMessage = async (messageId: string) => {
+    let removedMessage: Message | null = null
+    setMessages((prev) => {
+      removedMessage = prev.find((message) => message.id === messageId) ?? null
+      return prev.filter((m) => m.id !== messageId)
+    })
+
+    const { error: deleteError } = await (supabase.from('messages') as any).delete().eq('id', messageId)
+
+    if (deleteError) {
+      if (removedMessage) {
+        setMessages((prev) => {
+          if (prev.some((message) => message.id === removedMessage?.id)) {
+            return prev
+          }
+
+          return [...prev, removedMessage].sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          )
+        })
+      }
+
+      toast.error('Не удалось удалить сообщение')
+    }
+  }
+
   if (loading || !user || !conversationId) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#faf7f3] px-4 pb-28 md:pb-10">
@@ -387,13 +433,31 @@ export default function ConversationPage() {
               return (
                 <div
                   key={message.id}
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                  className={`group max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                     isMine
                       ? 'ml-auto bg-blue-600 text-white'
                       : 'mr-auto bg-slate-100 text-slate-700'
                   }`}
                 >
                   {message.text}
+                  <div
+                    className={`mt-2 flex items-center gap-2 text-[10px] ${
+                      isMine ? 'justify-end text-blue-100' : 'justify-start text-slate-500'
+                    }`}
+                  >
+                    <span>{formatMessageTime(message.created_at)}</span>
+                    {isMine ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteMessage(message.id)}
+                        className="inline-flex items-center gap-1 text-red-200 transition hover:text-red-100"
+                        aria-label="Удалить сообщение"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        <span className="text-[10px] text-red-200">Удалить</span>
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               )
             })

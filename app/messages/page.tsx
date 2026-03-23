@@ -35,7 +35,7 @@ type ConversationRow = {
   id: string
   buyer_id: string
   seller_id: string
-  updated_at: string | null
+  created_at: string | null
   item: Item | null
   buyer: Profile | null
   seller: Profile | null
@@ -81,7 +81,7 @@ export default function MessagesPage() {
         const { data: conversations, error } = await (supabase.from('conversations') as any)
           .select('*, item:items(*)')
           .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-          .order('updated_at', { ascending: false })
+          .order('created_at', { ascending: false })
 
         if (error) {
           console.error('Ошибка загрузки чатов:', error)
