@@ -1,15 +1,16 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import Image from 'next/image'
 import { X } from 'lucide-react'
 
 type ItemImageGalleryProps = {
   imageUrls: string[]
   title: string
+  topRightActions?: ReactNode
 }
 
-export function ItemImageGallery({ imageUrls, title }: ItemImageGalleryProps) {
+export function ItemImageGallery({ imageUrls, title, topRightActions }: ItemImageGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [fullscreenIndex, setFullscreenIndex] = useState(0)
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false)
@@ -70,6 +71,14 @@ export function ItemImageGallery({ imageUrls, title }: ItemImageGalleryProps) {
             </button>
           ))}
         </div>
+
+        <div className="pointer-events-none absolute left-3 top-3 z-20 rounded-full bg-black/50 px-2 py-1 text-xs font-medium text-white">
+          {safeActiveIndex + 1} / {imageUrls.length}
+        </div>
+
+        {topRightActions ? (
+          <div className="absolute right-3 top-3 z-20 flex items-center gap-2">{topRightActions}</div>
+        ) : null}
 
         <div className="pointer-events-none absolute bottom-12 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/30 px-3 py-1.5 backdrop-blur-sm">
           {imageUrls.map((_, index) => (

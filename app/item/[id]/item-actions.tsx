@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Heart, Loader2 } from 'lucide-react'
+import { Heart, Loader2, MessageCircle, Phone, Share2 } from 'lucide-react'
 
 import { useAuth } from '../../components/AuthProvider'
 import { buildLoginRedirectHref } from '../../lib/auth-routing'
@@ -13,6 +13,10 @@ type FavoriteToggleProps = {
   initialIsFavorite?: boolean
   className?: string
   iconClassName?: string
+}
+
+type ShareItemButtonProps = {
+  itemUrl: string
 }
 
 export function FavoriteToggle({
@@ -74,6 +78,73 @@ export function FavoriteToggle({
         className={`h-5 w-5 ${iconClassName ?? ''} ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`}
       />
     </button>
+  )
+}
+
+export function ShareItemButton({ itemUrl }: ShareItemButtonProps) {
+  const [toastMessage, setToastMessage] = useState('')
+
+  const toast = useMemo(
+    () => ({
+      success: (message: string) => setToastMessage(message),
+    }),
+    []
+  )
+
+  useEffect(() => {
+    if (!toastMessage) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setToastMessage('')
+    }, 2200)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [toastMessage])
+
+  const handleShareClick = async () => {
+    const rawUrl = itemUrl || window.location.href
+    const shareUrl = rawUrl.startsWith('http')
+      ? rawUrl
+      : new URL(rawUrl, window.location.origin).toString()
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({
+          text: 'Выложено на ProDance',
+          url: shareUrl,
+        })
+        return
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl)
+      }
+      toast.success('Ссылка скопирована')
+    } catch {
+      // Игнорируем отмену нативного share и ошибки буфера.
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => void handleShareClick()}
+        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm backdrop-blur transition hover:bg-white"
+        aria-label="Поделиться объявлением"
+      >
+        <Share2 className="h-[18px] w-[18px]" />
+      </button>
+      {toastMessage ? (
+        <div className="fixed bottom-24 left-1/2 z-[120] -translate-x-1/2 rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white shadow-lg">
+          {toastMessage}
+        </div>
+      ) : null}
+    </>
   )
 }
 
@@ -142,6 +213,83 @@ export function StartConversationButton({
         {sellerId === userId ? 'Это ваше объявление' : 'Написать продавцу'}
       </span>
     </button>
+  )
+}
+
+export function SellerContactButtons({
+  itemId,
+  sellerId,
+}: {
+  itemId: string
+  sellerId: string | null
+}) {
+  const router = useRouter()
+  const { session } = useAuth()
+  const userId = session?.user?.id ?? null
+  const [isLoading, setIsLoading] = useState(false)
+  const [isPhoneVisible, setIsPhoneVisible] = useState(false)
+
+  const handleMessageClick = async () => {
+    if (!userId) {
+      router.push(buildLoginRedirectHref(`/item/${itemId}`, { reason: 'message' }))
+      return
+    }
+
+    if (!sellerId || sellerId === userId) {
+      return
+    }
+
+    setIsLoading(true)
+
+    const { data: existing } = await (supabase.from('conversations') as any)
+      .select('id')
+      .eq('item_id', itemId)
+      .eq('buyer_id', userId)
+      .eq('seller_id', sellerId)
+      .maybeSingle()
+
+    if (existing?.id) {
+      setIsLoading(false)
+      router.push(`/messages/${existing.id}`)
+      return
+    }
+
+    const { data: created, error } = await (supabase.from('conversations') as any)
+      .insert({
+        item_id: itemId,
+        buyer_id: userId,
+        seller_id: sellerId,
+      })
+      .select('id')
+      .single()
+
+    setIsLoading(false)
+
+    if (!error && created?.id) {
+      router.push(`/messages/${created.id}`)
+    }
+  }
+
+  return (
+    <div className="mt-4 flex gap-2">
+      <button
+        type="button"
+        onClick={() => setIsPhoneVisible((previous) => !previous)}
+        className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700"
+      >
+        <Phone className="h-4 w-4" />
+        <span>{isPhoneVisible ? '+7 (999) 000-00-00' : 'Показать телефон'}</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => void handleMessageClick()}
+        disabled={isLoading || !sellerId || sellerId === userId}
+        className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-60"
+      >
+        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+        <span>Написать</span>
+      </button>
+    </div>
   )
 }
 
