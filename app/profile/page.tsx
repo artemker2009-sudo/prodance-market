@@ -428,7 +428,15 @@ export default function ProfilePage() {
               myItems.length ? (
                 <div className="grid grid-cols-2 gap-3">
                   {myItems.map((item) => (
-                    <PremiumItemCard key={item.id} item={item} href={`/item/${item.id}`} />
+                    <div key={item.id} className="space-y-2">
+                      <PremiumItemCard item={item} href={`/item/${item.id}`} />
+                      <Link
+                        href={`/item/${item.id}`}
+                        className="inline-flex h-9 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+                      >
+                        Управлять
+                      </Link>
+                    </div>
                   ))}
                 </div>
               ) : (

@@ -1,8 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Heart, Loader2, MessageCircle, Phone, Share2 } from 'lucide-react'
+import { Heart, Loader2, MessageCircle, MoreVertical, Phone, Share2 } from 'lucide-react'
 
 import { useAuth } from '../../components/AuthProvider'
 import { buildLoginRedirectHref } from '../../lib/auth-routing'
@@ -188,6 +189,7 @@ export function OwnerListingActions({
   const [isRepublishing, setIsRepublishing] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [toastMessage, setToastMessage] = useState('')
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const toast = useMemo(
     () => ({
@@ -210,6 +212,34 @@ export function OwnerListingActions({
       window.clearTimeout(timeoutId)
     }
   }, [toastMessage])
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return
+    }
+
+    const handleOutsideClick = (event: globalThis.MouseEvent) => {
+      const target = event.target as HTMLElement | null
+      const menuRoot = target?.closest('[data-owner-listing-menu]')
+      if (!menuRoot) {
+        setIsMenuOpen(false)
+      }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('mousedown', handleOutsideClick)
+    window.addEventListener('keydown', handleEscape)
+
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [isMenuOpen])
 
   if (!sellerId || sellerId !== userId) {
     return null
@@ -265,13 +295,41 @@ export function OwnerListingActions({
       <section className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
         <h2 className="text-base font-semibold text-slate-900">Управление объявлением</h2>
         {isActive ? (
-          <button
-            type="button"
-            onClick={() => setIsArchiveModalOpen(true)}
-            className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-xl border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
-          >
-            Снять с публикации
-          </button>
+          <div className="mt-3 flex justify-end">
+            <div className="relative" data-owner-listing-menu>
+              <button
+                type="button"
+                onClick={() => setIsMenuOpen((previous) => !previous)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+                aria-label="Открыть меню управления объявлением"
+                aria-expanded={isMenuOpen}
+              >
+                <MoreVertical className="h-5 w-5" />
+              </button>
+
+              {isMenuOpen ? (
+                <div className="absolute right-0 top-full z-20 mt-2 w-52 overflow-hidden rounded-lg bg-white shadow-lg ring-1 ring-slate-100">
+                  <Link
+                    href={`/items/${itemId}/edit`}
+                    className="block px-4 py-2.5 text-sm text-slate-700 transition hover:bg-slate-50"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Редактировать
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsArchiveModalOpen(true)
+                      setIsMenuOpen(false)
+                    }}
+                    className="block w-full px-4 py-2.5 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+                  >
+                    Снять с публикации
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
         ) : (
           <div className="mt-3 space-y-3">
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">

@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { Mailbox } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Mailbox, MoreVertical, Package } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { useAuth } from '../components/AuthProvider'
 import { buildLoginRedirectHref } from '../lib/auth-routing'
@@ -12,9 +12,10 @@ import { supabase } from '../lib/supabase'
 
 type Chat = {
   id: string
+  buyerId: string
   itemTitle: string
+  itemImageUrl: string | null
   interlocutorName: string
-  interlocutorAvatarUrl: string | null
   preview: string
   time: string
 }
@@ -36,6 +37,8 @@ type ConversationRow = {
   buyer_id: string
   seller_id: string
   created_at: string | null
+  deleted_for_buyer?: boolean | null
+  deleted_for_seller?: boolean | null
   item: Item | null
   buyer: Profile | null
   seller: Profile | null
@@ -56,9 +59,125 @@ export default function MessagesPage() {
   const router = useRouter()
   const { session, loading } = useAuth()
   const user = session?.user ?? null
+  const currentUser = user
   const [chats, setChats] = useState<Chat[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [openMenuConversationId, setOpenMenuConversationId] = useState<string | null>(null)
+  const [toastMessage, setToastMessage] = useState('')
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success')
+  const toast = useMemo(
+    () => ({
+      success: (message: string) => {
+        setToastTone('success')
+        setToastMessage(message)
+      },
+      error: (message: string) => {
+        setToastTone('error')
+        setToastMessage(message)
+      },
+    }),
+    []
+  )
+
+  useEffect(() => {
+    if (!toastMessage) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setToastMessage('')
+    }, 2600)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [toastMessage])
+
+  useEffect(() => {
+    if (!openMenuConversationId) {
+      return
+    }
+
+    const handleOutsideClick = (event: globalThis.MouseEvent) => {
+      const target = event.target as HTMLElement | null
+      const menuRoot = target?.closest('[data-chat-actions]')
+      if (!menuRoot) {
+        setOpenMenuConversationId(null)
+      }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpenMenuConversationId(null)
+      }
+    }
+
+    window.addEventListener('mousedown', handleOutsideClick)
+    window.addEventListener('keydown', handleEscape)
+
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [openMenuConversationId])
+
+  const handleSoftDeleteConversation = async (conversationId: string) => {
+    if (!currentUser?.id) {
+      toast.error('Не удалось определить пользователя')
+      return
+    }
+
+    const targetConversation = chats.find((chat) => chat.id === conversationId)
+    if (!targetConversation) {
+      toast.error('Диалог не найден')
+      return
+    }
+
+    const previousChats = chats
+    const isBuyer = currentUser.id === targetConversation.buyerId
+
+    setChats((prevChats) => prevChats.filter((chat) => chat.id !== conversationId))
+    setOpenMenuConversationId(null)
+
+    try {
+      const { error } = await (supabase.from('conversations') as any)
+        .update({
+          [isBuyer ? 'deleted_for_buyer' : 'deleted_for_seller']: true,
+        })
+        .eq('id', conversationId)
+
+      if (error) {
+        throw error
+      }
+
+      toast.success('Переписка скрыта только у вас')
+    } catch (error) {
+      setChats(previousChats)
+      toast.error(error instanceof Error ? error.message : 'Не удалось скрыть переписку')
+    }
+  }
+
+  const handleHardDeleteConversation = async (conversationId: string) => {
+    const previousChats = chats
+    setChats((prevChats) => prevChats.filter((chat) => chat.id !== conversationId))
+    setOpenMenuConversationId(null)
+
+    try {
+      const { error } = await (supabase.from('conversations') as any)
+        .delete()
+        .eq('id', conversationId)
+
+      if (error) {
+        throw error
+      }
+
+      toast.success('Переписка удалена у всех участников')
+    } catch (error) {
+      setChats(previousChats)
+      toast.error(error instanceof Error ? error.message : 'Не удалось удалить переписку')
+    }
+  }
 
   useEffect(() => {
     if (loading || user) {
@@ -78,10 +197,23 @@ export default function MessagesPage() {
       setIsLoading(true)
       setFetchError(null)
       try {
-        const { data: conversations, error } = await (supabase.from('conversations') as any)
-          .select('*, item:items(*)')
+        const conversationsTable = supabase.from('conversations') as any
+        let { data: conversations, error } = await conversationsTable
+          .select(
+            '*, item:items(*), buyer:profiles!conversations_buyer_id_fkey(*), seller:profiles!conversations_seller_id_fkey(*)'
+          )
           .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
           .order('created_at', { ascending: false })
+
+        if (error) {
+          const fallbackResult = await conversationsTable
+            .select('*, item:items(*)')
+            .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+            .order('created_at', { ascending: false })
+
+          conversations = fallbackResult.data
+          error = fallbackResult.error
+        }
 
         if (error) {
           console.error('Ошибка загрузки чатов:', error)
@@ -94,7 +226,11 @@ export default function MessagesPage() {
         }
 
         const rows = (conversations ?? []) as ConversationRow[]
-        const conversationIds = rows.map((row) => row.id)
+        const visibleRows = rows.filter((conversation) => {
+          const isBuyer = user.id === conversation.buyer_id
+          return isBuyer ? !conversation.deleted_for_buyer : !conversation.deleted_for_seller
+        })
+        const conversationIds = visibleRows.map((row) => row.id)
 
         const { data: recentMessages } = conversationIds.length
           ? await (supabase.from('messages') as any)
@@ -120,18 +256,20 @@ export default function MessagesPage() {
           }
         }
 
-        const mapped = rows.map((conversation) => {
+        const mapped = visibleRows.map((conversation) => {
           const isBuyer = user.id === conversation.buyer_id
           const interlocutor = isBuyer ? conversation.seller : conversation.buyer
           const item = conversation.item
           const isItemAvailable = hasConversationItem(item)
           const lastMessage = lastMessageByConversation.get(conversation.id)
+          const itemImageUrl = isItemAvailable ? item.image_urls?.[0] ?? null : null
 
           return {
             id: conversation.id,
+            buyerId: conversation.buyer_id,
             itemTitle: isItemAvailable ? item.title?.trim() || 'Без названия' : 'Без названия',
-            interlocutorName: interlocutor?.name?.trim() || 'Пользователь',
-            interlocutorAvatarUrl: interlocutor?.avatar_url ?? null,
+            itemImageUrl,
+            interlocutorName: interlocutor?.name?.trim() || 'Пользователь ProDance',
             preview: lastMessage?.text?.trim() || 'Новый диалог',
             time: lastMessage?.created_at ? formatTime(lastMessage.created_at) : '',
           }
@@ -185,27 +323,30 @@ export default function MessagesPage() {
           ) : chats.length ? (
             <ul className="divide-y divide-slate-200/70">
               {chats.map((chat) => (
-                <li key={chat.id}>
-                  <Link href={`/messages/${chat.id}`} className="flex items-center gap-4 px-4 py-4">
-                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-200">
-                      {chat.interlocutorAvatarUrl ? (
+                <li key={chat.id} className="group relative">
+                  <Link
+                    href={`/messages/${chat.id}`}
+                    className="flex items-center gap-4 px-4 py-4 pr-16 transition-colors hover:bg-slate-50/80"
+                  >
+                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-slate-100">
+                      {chat.itemImageUrl ? (
                         <Image
-                          src={chat.interlocutorAvatarUrl}
-                          alt={chat.interlocutorName}
+                          src={chat.itemImageUrl}
+                          alt={chat.itemTitle}
                           fill
                           sizes="56px"
-                          className="object-cover"
+                          className="h-14 w-14 rounded-full object-cover"
                           unoptimized
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-slate-500">
-                          {chat.interlocutorName.charAt(0).toUpperCase()}
+                        <div className="flex h-full w-full items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                          <Package className="h-6 w-6" />
                         </div>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="truncate text-base font-semibold text-slate-950">
+                        <p className="truncate text-lg font-semibold text-slate-950">
                           {chat.interlocutorName}
                         </p>
                         <span className="shrink-0 text-xs text-slate-500">{chat.time}</span>
@@ -214,6 +355,51 @@ export default function MessagesPage() {
                       <p className="truncate text-sm text-slate-500">{chat.preview}</p>
                     </div>
                   </Link>
+
+                  <div className="absolute top-4 right-3" data-chat-actions>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        setOpenMenuConversationId((currentId) =>
+                          currentId === chat.id ? null : chat.id
+                        )
+                      }}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 opacity-0 shadow-sm transition hover:bg-slate-50 hover:text-slate-700 group-hover:opacity-100 focus:opacity-100"
+                      aria-label="Открыть меню действий с перепиской"
+                      aria-expanded={openMenuConversationId === chat.id}
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+
+                    {openMenuConversationId === chat.id ? (
+                      <div className="absolute right-0 top-11 z-20 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            void handleSoftDeleteConversation(chat.id)
+                          }}
+                          className="block w-full px-4 py-3 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+                        >
+                          Удалить переписку только у меня
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            void handleHardDeleteConversation(chat.id)
+                          }}
+                          className="block w-full px-4 py-3 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+                        >
+                          Удалить у всех переписку
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -233,6 +419,17 @@ export default function MessagesPage() {
           )}
         </section>
       </div>
+      {toastMessage ? (
+        <div className="pointer-events-none fixed right-4 bottom-24 z-50 md:bottom-6">
+          <div
+            className={`rounded-xl px-4 py-3 text-sm font-medium text-white shadow-lg ${
+              toastTone === 'success' ? 'bg-emerald-600' : 'bg-rose-600'
+            }`}
+          >
+            {toastMessage}
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }
