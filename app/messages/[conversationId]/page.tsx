@@ -83,25 +83,58 @@ export default function ConversationPage() {
       setError('')
       setIsConversationLoaded(false)
       try {
-        const { data: conversationData, error: conversationError } = await (supabase.from(
-          'conversations'
-        ) as any)
+        const conversationsTable = supabase.from('conversations') as any
+        let { data: conversationData, error: conversationError } = await conversationsTable
           .select(
-            'id, item_id, buyer_id, seller_id, item:items!conversations_item_id_fkey(id, title, price, image_urls), buyer:profiles!conversations_buyer_id_fkey(id, name), seller:profiles!conversations_seller_id_fkey(id, name)'
+            '*, item:items(*), buyer:profiles!conversations_buyer_id_fkey(*), seller:profiles!conversations_seller_id_fkey(*)'
           )
           .eq('id', conversationId)
           .maybeSingle()
+
+        if (conversationError) {
+          const fallbackResult = await conversationsTable
+            .select('*, items(*)')
+            .eq('id', conversationId)
+            .maybeSingle()
+
+          conversationData = fallbackResult.data
+          conversationError = fallbackResult.error
+
+          if (!conversationError && conversationData) {
+            const rawConversation = conversationData as {
+              items?: Item | Item[] | null
+            } & Conversation
+
+            const resolvedItem = Array.isArray(rawConversation.items)
+              ? rawConversation.items[0] ?? null
+              : rawConversation.items ?? null
+
+            conversationData = {
+              ...rawConversation,
+              item: resolvedItem,
+              buyer: null,
+              seller: null,
+            }
+          }
+        }
 
         if (!active) {
           return
         }
 
+        if (conversationError) {
+          console.error('Ошибка загрузки чата:', conversationError)
+          setError(conversationError?.message || 'Диалог не найден')
+          setConversation(null)
+          setMessages([])
+          return
+        }
+
         if (
-          conversationError ||
           !conversationData ||
           (conversationData.buyer_id !== user.id && conversationData.seller_id !== user.id)
         ) {
-          setError('Диалог не найден или недоступен')
+          setError('Диалог не найден')
           setConversation(null)
           setMessages([])
           return
@@ -184,7 +217,6 @@ export default function ConversationPage() {
   )
   const item = conversation?.item
   const hasItem = hasConversationItem(item)
-  const isItemUnavailable = conversation?.item === null
   const itemImageUrl = hasItem && Array.isArray(item.image_urls) ? item.image_urls[0] ?? null : null
   const itemTitle = hasItem ? item.title?.trim() || 'Без названия' : 'Объявление недоступно'
   const itemPrice =
@@ -289,7 +321,7 @@ export default function ConversationPage() {
             </div>
           </div>
 
-          {hasItem ? (
+          {conversation?.item && hasItem ? (
             <Link
               href={`/items/${item.id}`}
               className="z-30 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
@@ -314,16 +346,15 @@ export default function ConversationPage() {
               </div>
               <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
             </Link>
-          ) : isConversationLoaded && isItemUnavailable ? (
+          ) : isConversationLoaded ? (
             <div className="z-30 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-              <div className="h-12 w-12 shrink-0 rounded-lg bg-slate-200" />
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-slate-500">Объявление недоступно</p>
+                <p className="truncate text-sm font-medium text-slate-500">
+                  Объявление недоступно или удалено
+                </p>
               </div>
             </div>
-          ) : (
-            <div className="z-30 h-[68px] rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-sm" />
-          )}
+          ) : null}
         </div>
       </header>
 
