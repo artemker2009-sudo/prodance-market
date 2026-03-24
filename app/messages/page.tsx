@@ -29,6 +29,7 @@ type Item = {
 type Profile = {
   id: string
   name: string | null
+  avatar_url: string | null
 }
 
 type ConversationRow = {
@@ -199,7 +200,7 @@ export default function MessagesPage() {
         const conversationsTable = supabase.from('conversations') as any
         const { data: conversations, error } = await conversationsTable
           .select(
-            '*, item:items(*), buyer:profiles!conversations_buyer_id_fkey(id, name), seller:profiles!conversations_seller_id_fkey(id, name)'
+            '*, item:items(id, title, image_urls), buyer:profiles!buyer_id(id, name, avatar_url), seller:profiles!seller_id(id, name, avatar_url)'
           )
           .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
           .order('created_at', { ascending: false })
@@ -313,9 +314,9 @@ export default function MessagesPage() {
             <ul>
               {chats.map((chat) => (
                 <li key={chat.id}>
-                  <div className="flex items-center gap-3 p-4 w-full relative bg-white border-b border-slate-100 transition-colors hover:bg-slate-50/70 last:border-b-0">
-                    <Link href={`/messages/${chat.id}`} className="flex min-w-0 flex-1 items-center gap-3">
-                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-slate-100">
+                  <div className="relative flex w-full items-stretch gap-3 border-b border-slate-100 bg-white p-4 transition-colors last:border-b-0 hover:bg-slate-50/70">
+                    <Link href={`/messages/${chat.id}`} className="flex min-w-0 flex-1 items-stretch gap-3">
+                      <div className="relative h-14 w-14 shrink-0 self-center overflow-hidden rounded-full bg-slate-100">
                         {chat.itemImageUrl ? (
                           <Image
                             src={chat.itemImageUrl}
@@ -331,7 +332,7 @@ export default function MessagesPage() {
                           </div>
                         )}
                       </div>
-                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                      <div className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
                         <p className="text-base font-semibold text-slate-900 truncate">
                           {chat.interlocutorName}
                         </p>
@@ -341,7 +342,7 @@ export default function MessagesPage() {
                     </Link>
 
                     <div
-                      className="flex flex-col items-end justify-between self-stretch ml-2 min-w-[50px] py-0.5 relative z-20"
+                      className="relative z-20 ml-2 flex min-w-[50px] flex-col items-end justify-between py-0.5"
                       data-chat-actions
                     >
                       <button
@@ -357,7 +358,7 @@ export default function MessagesPage() {
                         aria-label="Открыть меню действий с перепиской"
                         aria-expanded={openMenuConversationId === chat.id}
                       >
-                        <MoreVertical className="text-slate-500 hover:text-slate-700 w-5 h-5" />
+                        <MoreVertical className="h-5 w-5 text-slate-500" />
                       </button>
                       <span className="text-xs text-slate-400 whitespace-nowrap">{chat.time}</span>
 
