@@ -358,7 +358,7 @@ export default function ProfilePage() {
       setSelectedSupportTopic('Вопрос по сайту')
       setIsSupportOpen(false)
       toast.success('Обращение отправлено')
-      router.push(`/messages/support/${ticket.id}`)
+      router.push('/messages/support')
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Не удалось отправить обращение')
     } finally {

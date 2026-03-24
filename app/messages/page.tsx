@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { LifeBuoy, Mailbox, MoreVertical, Package } from 'lucide-react'
+import { MoreVertical, Package } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { useAuth } from '../components/AuthProvider'
@@ -61,7 +61,6 @@ export default function MessagesPage() {
   const user = session?.user ?? null
   const currentUser = user
   const [chats, setChats] = useState<Chat[]>([])
-  const [supportTickets, setSupportTickets] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [openMenuConversationId, setOpenMenuConversationId] = useState<string | null>(null)
@@ -80,8 +79,6 @@ export default function MessagesPage() {
     }),
     []
   )
-  const hasConversationsOrTickets = chats.length > 0 || supportTickets.length > 0
-
   useEffect(() => {
     if (!toastMessage) {
       return
@@ -204,19 +201,12 @@ export default function MessagesPage() {
           .select('*, item:items(*)')
           .or(`buyer_id.eq.${currentUser.id},seller_id.eq.${currentUser.id}`)
           .order('created_at', { ascending: false })
-        const { data: tickets } = await supabase
-          .from('support_tickets')
-          .select('*')
-          .eq('user_id', currentUser.id)
-          .order('created_at', { ascending: false })
-        if (tickets) setSupportTickets(tickets)
 
         if (convError) {
           console.error('Ошибка загрузки чатов:', convError)
           if (active) {
             setFetchError(convError.message)
             setChats([])
-            setSupportTickets([])
             setIsLoading(false)
           }
           return
@@ -309,7 +299,6 @@ export default function MessagesPage() {
         if (active) {
           setFetchError(error instanceof Error ? error.message : 'Неизвестная ошибка')
           setChats([])
-          setSupportTickets([])
           setIsLoading(false)
         }
       }
@@ -347,46 +336,41 @@ export default function MessagesPage() {
             </div>
           ) : fetchError ? (
             <div className="bg-white p-4 text-red-500">Ошибка: {fetchError}</div>
-          ) : hasConversationsOrTickets ? (
+          ) : (
             <div className="w-full bg-white">
-              {supportTickets.length > 0 && (
-                <div className="w-full mb-2">
-                  {supportTickets.map((ticket) => (
-                    <Link
-                      key={ticket.id}
-                      href={`/messages/support/${ticket.id}`}
-                      className="block w-full bg-blue-50/40 hover:bg-blue-50/70 border-b border-blue-100 p-4 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 bg-blue-500 rounded-full flex items-center justify-center text-white shrink-0">
-                          <LifeBuoy className="h-6 w-6" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-base font-semibold text-gray-900">Служба поддержки</h3>
-                          <p className="text-sm text-gray-600 truncate">{ticket.topic}</p>
-                        </div>
-                        <div className="flex flex-col items-end justify-center ml-2">
-                          <span
-                            className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full ${
-                              ticket.status === 'open'
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-gray-100 text-gray-500'
-                            }`}
-                          >
-                            {ticket.status === 'open' ? 'Открыт' : 'Закрыт'}
-                          </span>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
+              <Link
+                href="/messages/support"
+                className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-blue-50/30 hover:bg-blue-50/60 transition-colors"
+              >
+                <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white shrink-0">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+                  </svg>
                 </div>
-              )}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-semibold text-gray-900">Служба поддержки</h3>
+                  <p className="text-sm text-gray-500 truncate">
+                    Здравствуйте! Чем мы можем вам помочь?
+                  </p>
+                </div>
+              </Link>
               {chats.length ? (
                 <ul className="w-full">
                   {chats.map((chat) => (
-                    <li key={chat.id} className="border-b border-gray-200 last:border-none">
-                      <div className="relative flex w-full items-stretch gap-3 bg-white px-4 py-3 transition-colors hover:bg-slate-50/70">
-                        <Link href={`/messages/${chat.id}`} className="flex min-w-0 flex-1 items-stretch gap-3">
+                    <li key={chat.id}>
+                      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white cursor-pointer hover:bg-gray-50">
+                        <Link href={`/messages/${chat.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                           <div className="relative h-14 w-14 shrink-0 self-center overflow-hidden rounded-full bg-slate-100">
                             {chat.itemImageUrl ? (
                               <Image
@@ -412,10 +396,7 @@ export default function MessagesPage() {
                           </div>
                         </Link>
 
-                        <div
-                          className="relative z-20 ml-2 flex min-w-[50px] flex-col items-end justify-between py-0.5"
-                          data-chat-actions
-                        >
+                        <div className="relative z-20 ml-2 flex min-w-[50px] flex-col items-end justify-between py-0.5" data-chat-actions>
                           <button
                             type="button"
                             onClick={(event) => {
@@ -465,19 +446,6 @@ export default function MessagesPage() {
                   ))}
                 </ul>
               ) : null}
-            </div>
-          ) : (
-            <div className="flex min-h-[28rem] flex-col items-center justify-center bg-white px-6 py-10 text-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full border border-slate-200/70 bg-[#faf7f3] text-slate-400">
-                <Mailbox className="h-9 w-9 stroke-[1.75]" />
-              </div>
-              <h2 className="mt-6 text-2xl font-bold tracking-tight text-slate-950">
-                У вас пока нет активных диалогов.
-              </h2>
-              <p className="mt-3 max-w-xs text-sm leading-6 text-slate-500">
-                Когда начнете обсуждать покупку или продажу, все диалоги аккуратно
-                соберутся в этом разделе.
-              </p>
             </div>
           )}
         </section>

@@ -1,13 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { ArrowLeft, LifeBuoy, Send } from 'lucide-react'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
-import { useAuth } from '../../../components/AuthProvider'
-import { buildLoginRedirectHref } from '../../../lib/auth-routing'
-import { supabase } from '../../../lib/supabase'
+import { useAuth } from '../../components/AuthProvider'
+import { buildLoginRedirectHref } from '../../lib/auth-routing'
+import { supabase } from '../../lib/supabase'
 
 type SupportTicket = {
   id: string
@@ -18,11 +18,18 @@ type SupportTicket = {
 
 type SupportMessage = {
   id: string
-  ticket_id: string
-  sender_id: string | null
+  ticket_id?: string
+  sender_id?: string | null
   text: string
   is_admin: boolean | null
   created_at: string
+}
+
+const welcomeMsg: SupportMessage = {
+  id: 'sys',
+  text: 'Здравствуйте! Это чат поддержки ProDance. Опишите вашу проблему, и администратор ответит вам в ближайшее время.',
+  is_admin: true,
+  created_at: new Date().toISOString(),
 }
 
 function formatMessageTime(value: string) {
@@ -32,12 +39,10 @@ function formatMessageTime(value: string) {
   })
 }
 
-export default function SupportTicketChatPage() {
+export default function SupportChatPage() {
   const router = useRouter()
-  const params = useParams<{ id: string }>()
   const { session, loading } = useAuth()
   const user = session?.user ?? null
-  const ticketId = params?.id ?? ''
 
   const [ticket, setTicket] = useState<SupportTicket | null>(null)
   const [messages, setMessages] = useState<SupportMessage[]>([])
@@ -51,45 +56,51 @@ export default function SupportTicketChatPage() {
       return
     }
 
-    if (ticketId) {
-      router.replace(buildLoginRedirectHref(`/messages/support/${ticketId}`))
-    }
-  }, [loading, router, ticketId, user])
+    router.replace(buildLoginRedirectHref('/messages/support'))
+  }, [loading, router, user])
 
   useEffect(() => {
-    if (!ticketId || !user?.id) {
+    if (!user?.id) {
       return
     }
 
     let active = true
 
-    const loadTicket = async () => {
+    const loadChat = async () => {
       setError('')
       setLoaded(false)
 
       try {
         const { data: ticketRow, error: ticketError } = await (supabase.from('support_tickets') as any)
-          .select('id, user_id, topic, status')
-          .eq('id', ticketId)
+          .select('*')
           .eq('user_id', user.id)
-          .maybeSingle()
+          .eq('status', 'open')
+          .single()
 
         if (!active) {
           return
         }
 
-        if (ticketError || !ticketRow) {
+        // PGRST116: no rows returned for single()
+        if (ticketError && ticketError.code !== 'PGRST116') {
           setTicket(null)
-          setMessages([])
-          setError(ticketError?.message ?? 'Обращение не найдено')
+          setMessages([welcomeMsg])
+          setError(ticketError.message)
           return
         }
 
-        setTicket(ticketRow as SupportTicket)
+        if (!ticketRow) {
+          setTicket(null)
+          setMessages([welcomeMsg])
+          return
+        }
+
+        const activeTicket = ticketRow as SupportTicket
+        setTicket(activeTicket)
 
         const { data: messageRows, error: messageError } = await (supabase.from('support_messages') as any)
           .select('id, ticket_id, sender_id, text, is_admin, created_at')
-          .eq('ticket_id', ticketId)
+          .eq('ticket_id', activeTicket.id)
           .order('created_at', { ascending: true })
 
         if (!active) {
@@ -97,20 +108,21 @@ export default function SupportTicketChatPage() {
         }
 
         if (messageError) {
+          setMessages([welcomeMsg])
           setError(messageError.message)
-          setMessages([])
           return
         }
 
-        setMessages((messageRows ?? []) as SupportMessage[])
+        const loadedMessages = (messageRows ?? []) as SupportMessage[]
+        setMessages(loadedMessages.length ? [welcomeMsg, ...loadedMessages] : [welcomeMsg])
       } catch (loadError) {
         if (!active) {
           return
         }
 
         setTicket(null)
-        setMessages([])
-        setError(loadError instanceof Error ? loadError.message : 'Не удалось загрузить обращение')
+        setMessages([welcomeMsg])
+        setError(loadError instanceof Error ? loadError.message : 'Не удалось загрузить чат поддержки')
       } finally {
         if (active) {
           setLoaded(true)
@@ -118,77 +130,25 @@ export default function SupportTicketChatPage() {
       }
     }
 
-    void loadTicket()
-
-    const messagesChannel = supabase
-      .channel(`support_ticket_messages_${ticketId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'support_messages',
-          filter: `ticket_id=eq.${ticketId}`,
-        },
-        (payload) => {
-          const inserted = payload.new as SupportMessage
-          setMessages((prev) => {
-            if (prev.some((message) => message.id === inserted.id)) {
-              return prev
-            }
-
-            return [...prev, inserted].sort(
-              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-            )
-          })
-        }
-      )
-      .subscribe()
-
-    const ticketChannel = supabase
-      .channel(`support_ticket_status_${ticketId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'support_tickets',
-          filter: `id=eq.${ticketId}`,
-        },
-        (payload) => {
-          const next = payload.new as SupportTicket
-          setTicket((prev) => {
-            if (!prev) {
-              return prev
-            }
-            return {
-              ...prev,
-              status: next.status,
-            }
-          })
-        }
-      )
-      .subscribe()
+    void loadChat()
 
     return () => {
       active = false
-      void supabase.removeChannel(messagesChannel)
-      void supabase.removeChannel(ticketChannel)
     }
-  }, [ticketId, user?.id])
+  }, [user?.id])
 
   const isClosed = (ticket?.status ?? 'open') === 'closed'
   const statusLabel = isClosed ? 'Закрыт' : 'Открыт'
   const canSend = useMemo(
-    () => Boolean(text.trim()) && !sending && !isClosed && Boolean(ticket?.id),
-    [isClosed, sending, text, ticket?.id]
+    () => Boolean(text.trim()) && !sending && !isClosed,
+    [isClosed, sending, text]
   )
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     const trimmedText = text.trim()
-    if (!user?.id || !ticket?.id || isClosed || !trimmedText) {
+    if (!user?.id || isClosed || !trimmedText) {
       return
     }
 
@@ -196,18 +156,46 @@ export default function SupportTicketChatPage() {
     setSending(true)
 
     try {
-      const { error: insertError } = await (supabase.from('support_messages') as any).insert({
-        ticket_id: ticket.id,
-        sender_id: user.id,
-        text: trimmedText,
-        is_admin: false,
-      })
+      let currentTicket = ticket
 
-      if (insertError) {
-        setError(insertError.message)
-        return
+      if (!currentTicket?.id) {
+        const { data: newTicket, error: createTicketError } = await (supabase.from('support_tickets') as any)
+          .insert({
+            user_id: user.id,
+            topic: 'Общее обращение',
+            status: 'open',
+          })
+          .select()
+          .single()
+
+        if (createTicketError || !newTicket?.id) {
+          throw new Error(createTicketError?.message ?? 'Не удалось создать тикет поддержки')
+        }
+
+        currentTicket = newTicket as SupportTicket
+        setTicket(currentTicket)
       }
 
+      const { data: insertedMessage, error: insertError } = await (supabase.from('support_messages') as any)
+        .insert({
+          ticket_id: currentTicket.id,
+          sender_id: user.id,
+          text: trimmedText,
+          is_admin: false,
+        })
+        .select('id, ticket_id, sender_id, text, is_admin, created_at')
+        .single()
+
+      if (insertError || !insertedMessage) {
+        throw new Error(insertError?.message ?? 'Не удалось отправить сообщение')
+      }
+
+      setMessages((prev) => {
+        if (prev.some((message) => message.id === insertedMessage.id)) {
+          return prev
+        }
+        return [...prev, insertedMessage as SupportMessage]
+      })
       setText('')
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Не удалось отправить сообщение')
@@ -216,10 +204,10 @@ export default function SupportTicketChatPage() {
     }
   }
 
-  if (loading || !user || !ticketId) {
+  if (loading || !user) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#faf7f3] px-4 pb-28 md:pb-10">
-        <p className="text-sm text-slate-500">Загрузка обращения...</p>
+        <p className="text-sm text-slate-500">Загрузка чата поддержки...</p>
       </main>
     )
   }
@@ -242,7 +230,7 @@ export default function SupportTicketChatPage() {
               <h1 className="truncate text-base font-semibold text-slate-950">Служба поддержки</h1>
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              {(ticket?.topic ?? 'Без темы').trim()} - {statusLabel}
+              {(ticket?.topic ?? 'Общее обращение').trim()} - {statusLabel}
             </p>
           </div>
         </div>
@@ -282,9 +270,7 @@ export default function SupportTicketChatPage() {
               )
             })
           ) : loaded ? (
-            <p className="my-auto text-center text-sm text-slate-500">
-              Пока нет сообщений. Опишите проблему, и поддержка ответит в этом чате.
-            </p>
+            <p className="my-auto text-center text-sm text-slate-500">Пока нет сообщений.</p>
           ) : (
             <p className="my-auto text-center text-sm text-slate-500">Загружаем переписку...</p>
           )}
