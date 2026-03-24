@@ -25,7 +25,7 @@ type ItemRow = {
 }
 
 type ItemsTableClientProps = {
-  initialItems: ItemRow[]
+  items: ItemRow[]
   initialError?: string
 }
 
@@ -37,7 +37,7 @@ function getCover(imageUrls: string[] | null) {
   return imageUrls[0] ?? null
 }
 
-export default function ItemsTableClient({ initialItems, initialError = '' }: ItemsTableClientProps) {
+export default function ItemsTableClient({ items: initialItems, initialError = '' }: ItemsTableClientProps) {
   const [items, setItems] = useState<ItemRow[]>(initialItems)
   const [selectedItem, setSelectedItem] = useState<ItemRow | null>(null)
   const [error, setError] = useState(initialError)
