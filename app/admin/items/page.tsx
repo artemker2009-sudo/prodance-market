@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 
 import { supabase } from '../../lib/supabase'
+import { deleteItemAsAdmin } from '../../actions/admin'
 
 type ItemRow = {
   id: string
@@ -98,19 +99,18 @@ export default function AdminItemsPage() {
     setDeletingId(item.id)
     setError('')
 
-    const { error } = await (supabase.from('items') as any).delete().eq('id', item.id)
-
-    if (error) {
+    try {
+      await deleteItemAsAdmin(item.id)
+      setItems((prev) => prev.filter((row) => row.id !== item.id))
+      toast.success('Объявление удалено')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Не удалось удалить объявление'
       console.error('Ошибка удаления:', error)
-      setError(error.message)
-      toast.error(`Ошибка БД: ${error.message}`)
+      setError(message)
+      toast.error(`Ошибка удаления: ${message}`)
+    } finally {
       setDeletingId(null)
-      return
     }
-
-    setItems((prev) => prev.filter((row) => row.id !== item.id))
-    toast.success('Объявление удалено')
-    setDeletingId(null)
   }
 
   return (

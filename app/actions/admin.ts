@@ -1,5 +1,7 @@
 'use server'
 
+import { createClient } from '@supabase/supabase-js'
+
 import { supabaseAdmin } from '../lib/supabase-admin'
 import type { Product } from '../lib/types'
 
@@ -88,4 +90,19 @@ export async function rejectProduct(id: string, password: string) {
   if (deleteError) {
     throw new Error(deleteError.message)
   }
+}
+
+export async function deleteItemAsAdmin(itemId: string) {
+  const supabaseAdminClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const { error } = await supabaseAdminClient.from('items').delete().eq('id', itemId)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return { success: true }
 }
