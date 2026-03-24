@@ -1,8 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
 type DeletedItemProfile = {
-  full_name: string | null
-  avatar_url: string | null
+  name?: string | null
+  full_name?: string | null
+  username?: string | null
+  first_name?: string | null
+  avatar_url?: string | null
 }
 
 type DeletedItemStatRow = {
@@ -54,7 +57,7 @@ export default async function AdminDeletedItemsPage() {
   )
 
   const { data: stats, error } = await (supabaseAdmin.from('deleted_items_stats') as any)
-    .select('*, profiles(full_name, avatar_url)')
+    .select('*, profiles(*)')
     .order('deleted_at', { ascending: false })
 
   const rows = (stats ?? []) as DeletedItemStatRow[]
@@ -89,8 +92,13 @@ export default async function AdminDeletedItemsPage() {
             <tbody className="divide-y divide-slate-100 bg-white">
               {rows.map((stat) => {
                 const profile = normalizeProfile(stat.profiles)
-                const sellerName = profile?.full_name || stat.seller_id || 'Неизвестно'
-                const sellerInitial = (profile?.full_name?.[0] ?? 'U').toUpperCase()
+                const sellerName =
+                  profile?.name ||
+                  profile?.full_name ||
+                  profile?.username ||
+                  profile?.first_name ||
+                  'Неизвестный продавец'
+                const sellerInitial = (sellerName?.[0] ?? 'U').toUpperCase()
 
                 return (
                   <tr key={stat.id}>

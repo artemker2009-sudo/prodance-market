@@ -251,7 +251,7 @@ export default function EditItemPage() {
           category,
           gender,
           size: normalizedSize,
-          price: numericPrice,
+          price: Number(numericPrice),
           description: normalizedDescription || null,
           location_address: normalizedLocationAddress,
           image_urls: nextImageUrls,
@@ -259,13 +259,21 @@ export default function EditItemPage() {
         .eq('id', item.id)
 
       if (updateError) {
-        throw updateError
+        console.error('Supabase Update Error:', updateError)
+        setError(`Ошибка сохранения: ${updateError.message}`)
+        return
       }
 
       toast.success('Изменения сохранены')
       router.push('/profile')
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Не удалось сохранить изменения')
+      if (caughtError instanceof Error) {
+        console.error('Supabase Update Error:', caughtError)
+        setError(`Ошибка сохранения: ${caughtError.message}`)
+      } else {
+        console.error('Supabase Update Error:', caughtError)
+        setError('Ошибка сохранения: неизвестная ошибка')
+      }
     } finally {
       setIsSubmitting(false)
     }
