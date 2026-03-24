@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Loader2, Plus, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
@@ -17,7 +18,9 @@ type EditableItem = {
   category: string | null
   gender: string | null
   size: string | null
-  location_address: string | null
+  address: string | null
+  latitude: number | null
+  longitude: number | null
 }
 
 const categories = ['Турнирное', 'Тренировочное', 'Одежда', 'Обувь', 'Аксессуары'] as const
@@ -29,6 +32,15 @@ const deleteReasonOptions = [
   'Передумал продавать',
   'Другое',
 ] as const
+
+const LocationPickerMap = dynamic(() => import('../../components/LocationPickerMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-64 animate-pulse rounded-xl border border-slate-200 bg-slate-100 text-sm text-slate-500 flex items-center justify-center">
+      Загружаем карту...
+    </div>
+  ),
+})
 
 export default function EditItemPage() {
   const router = useRouter()
@@ -42,7 +54,9 @@ export default function EditItemPage() {
   const [category, setCategory] = useState<(typeof categories)[number]>('Турнирное')
   const [gender, setGender] = useState<(typeof genders)[number]>('Женское')
   const [size, setSize] = useState('')
-  const [locationAddress, setLocationAddress] = useState('')
+  const [address, setAddress] = useState('')
+  const [latitude, setLatitude] = useState<number | null>(null)
+  const [longitude, setLongitude] = useState<number | null>(null)
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([])
   const [newPreviewUrls, setNewPreviewUrls] = useState<string[]>([])
@@ -152,7 +166,9 @@ export default function EditItemPage() {
           : 'Женское'
       )
       setSize(editableItem.size ?? '')
-      setLocationAddress(editableItem.location_address ?? '')
+      setAddress(editableItem.address ?? '')
+      setLatitude(typeof editableItem.latitude === 'number' ? editableItem.latitude : null)
+      setLongitude(typeof editableItem.longitude === 'number' ? editableItem.longitude : null)
       setImageUrls(Array.isArray(editableItem.image_urls) ? editableItem.image_urls : [])
       setIsLoading(false)
     }
@@ -205,10 +221,10 @@ export default function EditItemPage() {
     const normalizedPrice = price.trim()
     const normalizedDescription = description.trim()
     const normalizedSize = size.trim()
-    const normalizedLocationAddress = locationAddress.trim()
+    const normalizedAddress = address.trim()
     const numericPrice = Number(normalizedPrice)
 
-    if (!normalizedTitle || !normalizedPrice || !normalizedSize || !normalizedLocationAddress) {
+    if (!normalizedTitle || !normalizedPrice || !normalizedSize || !normalizedAddress) {
       setError('Заполните обязательные поля: название, цену, размер и адрес')
       return
     }
@@ -253,7 +269,9 @@ export default function EditItemPage() {
           size: normalizedSize,
           price: Number(numericPrice),
           description: normalizedDescription || null,
-          location_address: normalizedLocationAddress,
+          address: normalizedAddress,
+          latitude,
+          longitude,
           image_urls: nextImageUrls,
         })
         .eq('id', item.id)
@@ -527,20 +545,43 @@ export default function EditItemPage() {
             />
           </div>
 
-          <div>
-            <label htmlFor="location_address" className="mb-2 block text-sm font-medium text-slate-600">
-              Место встречи / Адрес
-            </label>
-            <input
-              id="location_address"
-              name="location_address"
-              type="text"
-              value={locationAddress}
-              onChange={(event) => setLocationAddress(event.target.value)}
-              className="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-base outline-none placeholder:text-slate-400 focus:border-slate-950 focus:bg-white"
-              placeholder="Укажите адрес (город, улица, дом)"
-              required
+          <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900">Место встречи / Где забрать товар</h3>
+              <p className="mt-1 text-sm text-slate-500">Укажите адрес и поставьте точку на карте.</p>
+            </div>
+            <div>
+              <label htmlFor="address" className="mb-2 block text-sm font-medium text-slate-600">
+                Адрес
+              </label>
+              <input
+                id="address"
+                name="address"
+                type="text"
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+                className="h-14 w-full rounded-xl border border-slate-200 bg-white px-4 text-base outline-none placeholder:text-slate-400 focus:border-slate-950"
+                placeholder="Укажите адрес (город, улица, дом)"
+                required
+              />
+            </div>
+            <LocationPickerMap
+              latitude={latitude}
+              longitude={longitude}
+              onChange={({ latitude: nextLatitude, longitude: nextLongitude }) => {
+                setLatitude(nextLatitude)
+                setLongitude(nextLongitude)
+              }}
             />
+            {typeof latitude === 'number' && typeof longitude === 'number' ? (
+              <p className="text-xs text-slate-500">
+                Выбранная точка: {latitude.toFixed(6)}, {longitude.toFixed(6)}
+              </p>
+            ) : (
+              <p className="text-xs text-slate-500">
+                Точка на карте пока не выбрана, адрес все равно сохранится.
+              </p>
+            )}
           </div>
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
