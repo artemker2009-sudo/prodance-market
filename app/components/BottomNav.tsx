@@ -64,7 +64,7 @@ export function BottomNav() {
   const { session } = useAuth()
 
   return (
-    <nav className="fixed bottom-0 left-1/2 z-50 flex h-16 w-full max-w-[480px] -translate-x-1/2 items-center justify-around border-t border-gray-200 bg-white pb-safe shadow-xl md:hidden">
+    <nav className="fixed bottom-0 left-1/2 z-50 flex w-full max-w-[480px] -translate-x-1/2 justify-around border-t border-gray-200 bg-white pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)] shadow-xl md:hidden">
       {navItems.map(({ href, label, icon: Icon, match, isAccent, requiresAuth }) => {
         const isActive = match(pathname)
         const resolvedHref =
