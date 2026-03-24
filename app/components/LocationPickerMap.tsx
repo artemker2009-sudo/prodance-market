@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import {
-  CircleMarker,
   MapContainer,
+  Marker,
   TileLayer,
   useMap,
   useMapEvents,
 } from 'react-leaflet'
+import { Marker as LeafletMarker, divIcon, type LeafletEventHandlerFnMap } from 'leaflet'
+
+import { reverseGeocode } from '../lib/geocoding'
 
 type Coordinates = {
   latitude: number
@@ -18,6 +21,7 @@ type LocationPickerMapProps = {
   latitude: number | null
   longitude: number | null
   onChange: (coords: Coordinates) => void
+  onAddressResolved?: (address: string) => void
 }
 
 const MOSCOW_CENTER: [number, number] = [55.751244, 37.618423]
@@ -32,13 +36,33 @@ function MapCenterController({ center }: { center: [number, number] }) {
   return null
 }
 
-function MapClickHandler({ onChange }: { onChange: (coords: Coordinates) => void }) {
+function MapClickHandler({
+  onChange,
+  onAddressResolved,
+}: {
+  onChange: (coords: Coordinates) => void
+  onAddressResolved?: (address: string) => void
+}) {
   useMapEvents({
     click(event) {
-      onChange({
+      const nextCoordinates = {
         latitude: event.latlng.lat,
         longitude: event.latlng.lng,
-      })
+      }
+
+      onChange(nextCoordinates)
+
+      if (onAddressResolved) {
+        void reverseGeocode(nextCoordinates)
+          .then((resolvedAddress) => {
+            if (resolvedAddress) {
+              onAddressResolved(resolvedAddress)
+            }
+          })
+          .catch((error) => {
+            console.error('Ошибка обратного геокодирования:', error)
+          })
+      }
     },
   })
 
@@ -49,6 +73,7 @@ export default function LocationPickerMap({
   latitude,
   longitude,
   onChange,
+  onAddressResolved,
 }: LocationPickerMapProps) {
   const [center, setCenter] = useState<[number, number]>(MOSCOW_CENTER)
   const [tileError, setTileError] = useState(false)
@@ -82,12 +107,48 @@ export default function LocationPickerMap({
     )
   }, [markerPosition])
 
+  const markerIcon = useMemo(
+    () =>
+      divIcon({
+        className: '',
+        html: '<div style="width:24px;height:24px;border-radius:9999px;background:#0f172a;border:3px solid #ffffff;box-shadow:0 4px 10px rgba(15,23,42,0.3);"></div>',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      }),
+    []
+  )
+
+  const markerEventHandlers = useMemo<LeafletEventHandlerFnMap>(
+    () => ({
+      dragend(event) {
+        const marker = event.target as LeafletMarker
+        const { lat, lng } = marker.getLatLng()
+        const nextCoordinates = { latitude: lat, longitude: lng }
+
+        onChange(nextCoordinates)
+
+        if (onAddressResolved) {
+          void reverseGeocode(nextCoordinates)
+            .then((resolvedAddress) => {
+              if (resolvedAddress) {
+                onAddressResolved(resolvedAddress)
+              }
+            })
+            .catch((error) => {
+              console.error('Ошибка обратного геокодирования:', error)
+            })
+        }
+      },
+    }),
+    [onAddressResolved, onChange]
+  )
+
   return (
     <div className="space-y-2">
       <div className="h-64 overflow-hidden rounded-xl border border-slate-200">
         <MapContainer center={center} zoom={12} className="h-full w-full" scrollWheelZoom>
           <MapCenterController center={center} />
-          <MapClickHandler onChange={onChange} />
+          <MapClickHandler onChange={onChange} onAddressResolved={onAddressResolved} />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -97,11 +158,18 @@ export default function LocationPickerMap({
             }}
           />
           {markerPosition ? (
-            <CircleMarker center={markerPosition} radius={10} pathOptions={{ color: '#0f172a' }} />
+            <Marker
+              position={markerPosition}
+              icon={markerIcon}
+              draggable
+              eventHandlers={markerEventHandlers}
+            />
           ) : null}
         </MapContainer>
       </div>
-      <p className="text-xs text-slate-500">Нажмите на карту, чтобы поставить точку встречи.</p>
+      <p className="text-xs text-slate-500">
+        Нажмите на карту, чтобы поставить точку, или перетащите маркер в нужное место.
+      </p>
       {tileError ? (
         <p className="text-xs text-amber-700">
           Не удалось загрузить часть карты. Проверьте интернет и попробуйте еще раз.

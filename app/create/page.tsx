@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, Star } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 
 import { supabase } from '../lib/supabase'
+import { geocodeAddress } from '../lib/geocoding'
 
 const categories = ['Турнирное', 'Тренировочное', 'Обувь', 'Аксессуары'] as const
 const genders = ['Мужское', 'Женское', 'Детское'] as const
@@ -27,6 +28,7 @@ export default function CreatePage() {
   const [previewUrls, setPreviewUrls] = useState<string[]>([])
   const [mainPhotoIndex, setMainPhotoIndex] = useState(0)
   const previewUrlsRef = useRef<string[]>([])
+  const skipNextAddressGeocodeRef = useRef(false)
   const [address, setAddress] = useState('')
   const [latitude, setLatitude] = useState<number | null>(null)
   const [longitude, setLongitude] = useState<number | null>(null)
@@ -42,6 +44,41 @@ export default function CreatePage() {
       previewUrlsRef.current.forEach((previewUrl) => URL.revokeObjectURL(previewUrl))
     }
   }, [])
+
+  useEffect(() => {
+    const normalizedAddress = address.trim()
+
+    if (!normalizedAddress) {
+      return
+    }
+
+    if (skipNextAddressGeocodeRef.current) {
+      skipNextAddressGeocodeRef.current = false
+      return
+    }
+
+    let cancelled = false
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const resolvedCoordinates = await geocodeAddress(normalizedAddress)
+          if (!resolvedCoordinates || cancelled) {
+            return
+          }
+
+          setLatitude(resolvedCoordinates.latitude)
+          setLongitude(resolvedCoordinates.longitude)
+        } catch (error) {
+          console.error('Ошибка прямого геокодирования:', error)
+        }
+      })()
+    }, 1400)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeoutId)
+    }
+  }, [address])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     console.log('Submit attempt')
@@ -396,6 +433,10 @@ export default function CreatePage() {
               onChange={({ latitude: nextLatitude, longitude: nextLongitude }) => {
                 setLatitude(nextLatitude)
                 setLongitude(nextLongitude)
+              }}
+              onAddressResolved={(resolvedAddress) => {
+                skipNextAddressGeocodeRef.current = true
+                setAddress(resolvedAddress)
               }}
             />
             {typeof latitude === 'number' && typeof longitude === 'number' ? (
