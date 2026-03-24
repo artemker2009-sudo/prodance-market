@@ -25,6 +25,8 @@ type SupportMessage = {
   created_at: string
 }
 
+const TOPICS = ['Вопрос по товарам', 'Техническая ошибка', 'Жалоба на пользователя', 'Другое']
+
 const welcomeMsg: SupportMessage = {
   id: 'sys',
   text: 'Здравствуйте! Это чат поддержки ProDance. Опишите вашу проблему, и администратор ответит вам в ближайшее время.',
@@ -44,12 +46,13 @@ export default function SupportChatPage() {
   const { session, loading } = useAuth()
   const user = session?.user ?? null
 
-  const [ticket, setTicket] = useState<SupportTicket | null>(null)
+  const [activeTicket, setActiveTicket] = useState<SupportTicket | null>(null)
   const [messages, setMessages] = useState<SupportMessage[]>([])
   const [text, setText] = useState('')
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
 
   useEffect(() => {
     if (loading || user) {
@@ -83,24 +86,27 @@ export default function SupportChatPage() {
 
         // PGRST116: no rows returned for single()
         if (ticketError && ticketError.code !== 'PGRST116') {
-          setTicket(null)
+          setActiveTicket(null)
+          setSelectedTopic(null)
           setMessages([welcomeMsg])
           setError(ticketError.message)
           return
         }
 
         if (!ticketRow) {
-          setTicket(null)
+          setActiveTicket(null)
+          setSelectedTopic(null)
           setMessages([welcomeMsg])
           return
         }
 
-        const activeTicket = ticketRow as SupportTicket
-        setTicket(activeTicket)
+        const nextActiveTicket = ticketRow as SupportTicket
+        setActiveTicket(nextActiveTicket)
+        setSelectedTopic(nextActiveTicket.topic ?? null)
 
         const { data: messageRows, error: messageError } = await (supabase.from('support_messages') as any)
           .select('id, ticket_id, sender_id, text, is_admin, created_at')
-          .eq('ticket_id', activeTicket.id)
+          .eq('ticket_id', nextActiveTicket.id)
           .order('created_at', { ascending: true })
 
         if (!active) {
@@ -120,7 +126,8 @@ export default function SupportChatPage() {
           return
         }
 
-        setTicket(null)
+        setActiveTicket(null)
+        setSelectedTopic(null)
         setMessages([welcomeMsg])
         setError(loadError instanceof Error ? loadError.message : 'Не удалось загрузить чат поддержки')
       } finally {
@@ -137,14 +144,14 @@ export default function SupportChatPage() {
     }
   }, [user?.id])
 
-  const isClosed = (ticket?.status ?? 'open') === 'closed'
+  const isClosed = (activeTicket?.status ?? 'open') === 'closed'
   const statusLabel = isClosed ? 'Закрыт' : 'Открыт'
   const canSend = useMemo(
     () => Boolean(text.trim()) && !sending && !isClosed,
     [isClosed, sending, text]
   )
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     const trimmedText = text.trim()
@@ -152,28 +159,33 @@ export default function SupportChatPage() {
       return
     }
 
+    if (!activeTicket && !selectedTopic) {
+      setError('Сначала выберите тему обращения')
+      return
+    }
+
     setError('')
     setSending(true)
 
     try {
-      let currentTicket = ticket
+      let currentTicket = activeTicket
 
       if (!currentTicket?.id) {
-        const { data: newTicket, error: createTicketError } = await (supabase.from('support_tickets') as any)
+        const { data: newTicket, error: ticketError } = await (supabase.from('support_tickets') as any)
           .insert({
             user_id: user.id,
-            topic: 'Общее обращение',
+            topic: selectedTopic,
             status: 'open',
           })
           .select()
           .single()
 
-        if (createTicketError || !newTicket?.id) {
-          throw new Error(createTicketError?.message ?? 'Не удалось создать тикет поддержки')
+        if (ticketError || !newTicket?.id) {
+          throw new Error(ticketError?.message ?? 'Не удалось создать тикет поддержки')
         }
 
         currentTicket = newTicket as SupportTicket
-        setTicket(currentTicket)
+        setActiveTicket(currentTicket)
       }
 
       const { data: insertedMessage, error: insertError } = await (supabase.from('support_messages') as any)
@@ -197,6 +209,9 @@ export default function SupportChatPage() {
         return [...prev, insertedMessage as SupportMessage]
       })
       setText('')
+      if (!activeTicket) {
+        setSelectedTopic(currentTicket.topic ?? selectedTopic)
+      }
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Не удалось отправить сообщение')
     } finally {
@@ -230,7 +245,7 @@ export default function SupportChatPage() {
               <h1 className="truncate text-base font-semibold text-slate-950">Служба поддержки</h1>
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              {(ticket?.topic ?? 'Общее обращение').trim()} - {statusLabel}
+              {(activeTicket?.topic ?? selectedTopic ?? 'Общее обращение').trim()} - {statusLabel}
             </p>
           </div>
         </div>
@@ -280,9 +295,64 @@ export default function SupportChatPage() {
           <div className="rounded-[1.5rem] border border-slate-200 bg-white px-4 py-3 text-center text-sm text-slate-600 shadow-sm">
             Обращение закрыто
           </div>
+        ) : !activeTicket && !selectedTopic ? (
+          <div className="rounded-[1.5rem] border border-gray-100 bg-white p-4 shadow-sm">
+            <p className="mb-3 text-center text-sm text-gray-500">Выберите тему обращения:</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {TOPICS.map((topic) => (
+                <button
+                  key={topic}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTopic(topic)
+                    setError('')
+                  }}
+                  className="rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-100"
+                >
+                  {topic}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : !activeTicket && selectedTopic ? (
+          <form
+            onSubmit={handleSendMessage}
+            className="rounded-[1.5rem] bg-white p-2 shadow-sm"
+          >
+            <div className="mb-2 flex items-center justify-between px-2">
+              <p className="text-xs text-slate-500">Тема: {selectedTopic}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedTopic(null)
+                  setText('')
+                }}
+                className="text-xs font-medium text-slate-500 transition-colors hover:text-slate-700"
+              >
+                Сбросить тему
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder={`Тема: ${selectedTopic}. Опишите проблему...`}
+                className="h-11 w-full rounded-xl bg-[#faf7f3] px-4 text-[16px] text-slate-900 outline-none placeholder:text-slate-400"
+              />
+              <button
+                type="submit"
+                disabled={!canSend}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-slate-950 text-white disabled:opacity-50"
+                aria-label="Отправить"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </div>
+          </form>
         ) : (
           <form
-            onSubmit={handleSubmit}
+            onSubmit={handleSendMessage}
             className="flex items-center gap-2 rounded-[1.5rem] bg-white p-2 shadow-sm"
           >
             <input
