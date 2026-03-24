@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
-import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { Headset, Home, LogOut, Package, Shield, Users } from 'lucide-react'
+import AdminSidebarNav from './AdminSidebarNav'
 
 const ADMIN_COOKIE = 'admin_token'
 const ADMIN_PASSWORD = 'Artem.ker.09'
@@ -96,21 +96,7 @@ export default async function AdminLayout({
             </div>
           </div>
 
-          <nav className="space-y-2">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-[#faf7f3] hover:text-slate-950"
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{item.label}</span>
-                </Link>
-              )
-            })}
-          </nav>
+          <AdminSidebarNav navItems={navItems} />
 
           <form action={logoutAdmin} className="mt-8">
             <button
