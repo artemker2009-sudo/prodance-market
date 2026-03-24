@@ -5,7 +5,6 @@ import { ArrowLeft, BadgeCheck, MapPin, Star } from 'lucide-react'
 import { createSupabaseServerClient } from '../../lib/supabase-server'
 import {
   FavoriteToggle,
-  OwnerListingActions,
   QuickQuestionsSection,
   SellerContactButtons,
   ShareItemButton,
@@ -144,6 +143,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
+  const currentUser = user
 
   const { data: item, error: itemError } = await (supabase.from('items') as any)
     .select('*')
@@ -312,15 +312,11 @@ export default async function ItemPage({ params }: ItemPageProps) {
           </p>
         </section>
 
-        <section className="rounded-2xl bg-white p-4 shadow-sm">
-          <QuickQuestionsSection itemId={item.id} sellerId={item.seller_id} />
-        </section>
-
-        <OwnerListingActions
-          itemId={item.id}
-          sellerId={item.seller_id}
-          initialIsActive={item.is_active !== false}
-        />
+        {currentUser?.id !== item.seller_id ? (
+          <section className="rounded-2xl bg-white p-4 shadow-sm">
+            <QuickQuestionsSection itemId={item.id} sellerId={item.seller_id} />
+          </section>
+        ) : null}
 
         <section className="bg-white p-4 rounded-2xl shadow-sm">
           <div className="flex items-start gap-4">
@@ -370,7 +366,9 @@ export default async function ItemPage({ params }: ItemPageProps) {
             </div>
           </div>
 
-          <SellerContactButtons itemId={item.id} sellerId={item.seller_id} />
+          {currentUser?.id !== item.seller_id ? (
+            <SellerContactButtons itemId={item.id} sellerId={item.seller_id} />
+          ) : null}
         </section>
       </section>
     </main>
