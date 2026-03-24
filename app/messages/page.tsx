@@ -44,6 +44,13 @@ type ConversationRow = {
   seller: Profile | null
 }
 
+type SupportTicket = {
+  id: string
+  user_id: string
+  topic: string | null
+  status: 'open' | 'closed' | null
+}
+
 function hasConversationItem(item: ConversationRow['item']): item is Item {
   return Boolean(item && typeof item.id === 'string')
 }
@@ -63,6 +70,7 @@ export default function MessagesPage() {
   const [chats, setChats] = useState<Chat[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([])
   const [openMenuConversationId, setOpenMenuConversationId] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState('')
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success')
@@ -311,6 +319,39 @@ export default function MessagesPage() {
     }
   }, [currentUser?.id])
 
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setSupportTickets([])
+      return
+    }
+
+    let active = true
+
+    const loadSupportTickets = async () => {
+      const { data, error } = await (supabase.from('support_tickets') as any)
+        .select('id, user_id, topic, status')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+
+      if (!active) {
+        return
+      }
+
+      if (error) {
+        setSupportTickets([])
+        return
+      }
+
+      setSupportTickets((data ?? []) as SupportTicket[])
+    }
+
+    void loadSupportTickets()
+
+    return () => {
+      active = false
+    }
+  }, [currentUser?.id])
+
   if (loading || !user) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#faf7f3] px-4 py-6 pb-28 md:pb-10">
@@ -361,7 +402,11 @@ export default function MessagesPage() {
                 <div className="flex-1 min-w-0">
                   <h3 className="text-base font-semibold text-gray-900">Служба поддержки</h3>
                   <p className="text-sm text-gray-500 truncate">
-                    Здравствуйте! Чем мы можем вам помочь?
+                    {supportTickets && supportTickets.length > 0 
+                      ? (supportTickets[0].status === 'open' 
+                          ? `Открыто: ${supportTickets[0].topic}` 
+                          : `Закрыто: ${supportTickets[0].topic}`)
+                      : "Здравствуйте! Чем мы можем вам помочь?"}
                   </p>
                 </div>
               </Link>

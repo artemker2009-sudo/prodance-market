@@ -44,8 +44,12 @@ export default function SupportMessagesRealtime({
   }, [initialMessages, ticketId])
 
   useEffect(() => {
+    if (!ticketId) {
+      return
+    }
+
     const channel = supabase
-      .channel(`support_chat_${ticketId}`)
+      .channel(`admin_support_chat_${ticketId}`)
       .on(
         'postgres_changes',
         {
@@ -55,13 +59,13 @@ export default function SupportMessagesRealtime({
           filter: `ticket_id=eq.${ticketId}`,
         },
         (payload) => {
-          const insertedMessage = payload.new as SupportMessageRow
           setMessages((prev) => {
-            if (prev.some((message) => message.id === insertedMessage.id)) {
+            const nextMessage = payload.new as SupportMessageRow
+            if (prev.some((message) => message.id === nextMessage.id)) {
               return prev
             }
 
-            return [...prev, insertedMessage]
+            return [...prev, nextMessage]
           })
         }
       )
@@ -73,7 +77,7 @@ export default function SupportMessagesRealtime({
   }, [ticketId])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [messages])
 
   if (!messages.length && !hasError) {
