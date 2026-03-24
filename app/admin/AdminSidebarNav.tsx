@@ -2,16 +2,31 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import type { LucideIcon } from 'lucide-react'
+import { FileText, Headset, Home, Users } from 'lucide-react'
 
 type NavItem = {
   href: string
   label: string
-  icon: LucideIcon
 }
 
 type Props = {
   navItems: NavItem[]
+}
+
+function getNavIcon(href: string) {
+  if (href === '/admin/items') {
+    return FileText
+  }
+
+  if (href === '/admin/users') {
+    return Users
+  }
+
+  if (href === '/admin/support') {
+    return Headset
+  }
+
+  return Home
 }
 
 export default function AdminSidebarNav({ navItems }: Props) {
@@ -28,7 +43,7 @@ export default function AdminSidebarNav({ navItems }: Props) {
   return (
     <nav className="space-y-2">
       {navItems.map((item) => {
-        const Icon = item.icon
+        const Icon = getNavIcon(item.href)
         const active = isActive(item.href)
         return (
           <Link

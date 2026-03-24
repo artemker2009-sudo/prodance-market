@@ -26,8 +26,12 @@ export default async function AdminItemsPage() {
     .order('created_at', { ascending: false })
 
   const items = ((data ?? []) as ItemRow[]) ?? []
-  const serializedItems = JSON.parse(JSON.stringify(items)) as ItemRow[]
   const initialError = error?.message ?? ''
 
-  return <ItemsTableClient items={serializedItems} initialError={initialError} />
+  return (
+    <ItemsTableClient
+      items={JSON.parse(JSON.stringify(items)) as ItemRow[]}
+      initialError={initialError}
+    />
+  )
 }

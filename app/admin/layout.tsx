@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { Headset, Home, LogOut, Package, Shield, Users } from 'lucide-react'
+import { LogOut, Shield } from 'lucide-react'
 import AdminSidebarNav from './AdminSidebarNav'
 
 const ADMIN_COOKIE = 'admin_token'
@@ -76,10 +76,10 @@ export default async function AdminLayout({
   }
 
   const navItems = [
-    { href: '/admin', label: 'Дашборд', icon: Home },
-    { href: '/admin/items', label: 'Объявления', icon: Package },
-    { href: '/admin/users', label: 'Пользователи', icon: Users },
-    { href: '/admin/support', label: 'Поддержка', icon: Headset },
+    { href: '/admin', label: 'Дашборд' },
+    { href: '/admin/items', label: 'Объявления' },
+    { href: '/admin/users', label: 'Пользователи' },
+    { href: '/admin/support', label: 'Поддержка' },
   ]
 
   return (
