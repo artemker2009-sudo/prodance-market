@@ -2,6 +2,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 import { supabaseAdmin } from '../../lib/supabase-admin'
+import SupportMessagesRealtime from './SupportMessagesRealtime'
 
 type ProfileRow = {
   id: string
@@ -312,32 +313,11 @@ export default async function AdminSupportPage({ searchParams }: AdminSupportPag
                   </p>
                 ) : null}
 
-                {!messages.length ? (
-                  <p className="m-auto text-center text-sm text-slate-500">Сообщений в этом обращении пока нет</p>
-                ) : (
-                  messages.map((message) => {
-                    const isAdmin = message.is_admin === true
-
-                    return (
-                      <div
-                        key={message.id}
-                        className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                          isAdmin
-                            ? 'ml-auto bg-blue-600 text-white'
-                            : 'mr-auto bg-white text-slate-700 shadow-sm'
-                        }`}
-                      >
-                        <p className="mb-1 text-[11px] font-semibold uppercase opacity-80">
-                          {isAdmin ? 'Администратор' : 'Пользователь'}
-                        </p>
-                        <p>{message.text?.trim() || 'Без текста'}</p>
-                        <p className={`mt-2 text-[10px] ${isAdmin ? 'text-blue-100' : 'text-slate-500'}`}>
-                          {formatDateTime(message.created_at)}
-                        </p>
-                      </div>
-                    )
-                  })
-                )}
+                <SupportMessagesRealtime
+                  ticketId={selectedTicket.id}
+                  initialMessages={messages}
+                  hasError={Boolean(messagesError)}
+                />
               </div>
 
               {selectedTicket.status === 'closed' ? (

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, ChevronRight, Send, Trash2 } from 'lucide-react'
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAuth } from '../../components/AuthProvider'
 import { buildLoginRedirectHref } from '../../lib/auth-routing'
@@ -67,6 +67,7 @@ export default function ConversationPage() {
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
   const [isConversationLoaded, setIsConversationLoaded] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const toast = useMemo(
     () => ({
       error: (message: string) => setError(message),
@@ -186,15 +187,25 @@ export default function ConversationPage() {
 
     void loadChat()
 
+    return () => {
+      active = false
+    }
+  }, [conversationId, user?.id])
+
+  useEffect(() => {
+    if (!conversation?.id) {
+      return
+    }
+
     const channel = supabase
-      .channel(`chat_${conversationId}`)
+      .channel(`chat_${conversation.id}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
+          filter: `conversation_id=eq.${conversation.id}`,
         },
         (payload) => {
           const inserted = payload.new as Message
@@ -209,18 +220,26 @@ export default function ConversationPage() {
       )
       .on(
         'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'messages' },
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversation.id}`,
+        },
         (payload) => {
-          setMessages((prev) => prev.filter((m) => m.id !== payload.old.id))
+          setMessages((prev) => prev.filter((message) => message.id !== payload.old.id))
         }
       )
       .subscribe()
 
     return () => {
-      active = false
       void supabase.removeChannel(channel)
     }
-  }, [conversationId, user?.id])
+  }, [conversation?.id])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const canSend = useMemo(
     () => Boolean(text.trim()) && Boolean(conversation?.id) && !sending,
@@ -466,6 +485,7 @@ export default function ConversationPage() {
               Напишите первое сообщение продавцу
             </p>
           )}
+          <div ref={messagesEndRef} />
         </div>
 
         <form

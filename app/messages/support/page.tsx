@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, LifeBuoy, Send } from 'lucide-react'
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAuth } from '../../components/AuthProvider'
 import { buildLoginRedirectHref } from '../../lib/auth-routing'
@@ -53,6 +53,7 @@ export default function SupportChatPage() {
   const [sending, setSending] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (loading || user) {
@@ -143,6 +144,42 @@ export default function SupportChatPage() {
       active = false
     }
   }, [user?.id])
+
+  useEffect(() => {
+    if (!activeTicket?.id) {
+      return
+    }
+
+    const channel = supabase
+      .channel(`support_chat_${activeTicket.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'support_messages',
+          filter: `ticket_id=eq.${activeTicket.id}`,
+        },
+        (payload) => {
+          const insertedMessage = payload.new as SupportMessage
+          setMessages((prev) => {
+            if (prev.some((message) => message.id === insertedMessage.id)) {
+              return prev
+            }
+            return [...prev, insertedMessage]
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [activeTicket?.id])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const isClosed = (activeTicket?.status ?? 'open') === 'closed'
   const statusLabel = isClosed ? 'Закрыт' : 'Открыт'
@@ -289,6 +326,7 @@ export default function SupportChatPage() {
           ) : (
             <p className="my-auto text-center text-sm text-slate-500">Загружаем переписку...</p>
           )}
+          <div ref={messagesEndRef} />
         </div>
 
         {isClosed ? (
