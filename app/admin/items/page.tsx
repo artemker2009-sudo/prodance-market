@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 
 import { supabase } from '../../lib/supabase'
@@ -26,6 +26,22 @@ export default function AdminItemsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [toastMessage, setToastMessage] = useState('')
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success')
+
+  const toast = useMemo(
+    () => ({
+      success: (message: string) => {
+        setToastTone('success')
+        setToastMessage(message)
+      },
+      error: (message: string) => {
+        setToastTone('error')
+        setToastMessage(message)
+      },
+    }),
+    []
+  )
 
   useEffect(() => {
     let active = true
@@ -60,6 +76,20 @@ export default function AdminItemsPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!toastMessage) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setToastMessage('')
+    }, 2600)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [toastMessage])
+
   const handleDelete = async (item: ItemRow) => {
     if (!confirm('Точно удалить?')) {
       return
@@ -68,15 +98,18 @@ export default function AdminItemsPage() {
     setDeletingId(item.id)
     setError('')
 
-    const { error: deleteError } = await (supabase.from('items') as any).delete().eq('id', item.id)
+    const { error } = await (supabase.from('items') as any).delete().eq('id', item.id)
 
-    if (deleteError) {
-      setError(deleteError.message)
+    if (error) {
+      console.error('Ошибка удаления:', error)
+      setError(error.message)
+      toast.error(`Ошибка БД: ${error.message}`)
       setDeletingId(null)
       return
     }
 
     setItems((prev) => prev.filter((row) => row.id !== item.id))
+    toast.success('Объявление удалено')
     setDeletingId(null)
   }
 
@@ -159,6 +192,16 @@ export default function AdminItemsPage() {
           </tbody>
         </table>
       </div>
+
+      {toastMessage ? (
+        <div
+          className={`fixed bottom-8 left-1/2 z-[120] -translate-x-1/2 rounded-full px-4 py-2 text-xs font-medium text-white shadow-lg ${
+            toastTone === 'success' ? 'bg-slate-900' : 'bg-rose-600'
+          }`}
+        >
+          {toastMessage}
+        </div>
+      ) : null}
     </div>
   )
 }
