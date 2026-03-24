@@ -92,6 +92,7 @@ export default async function HomePage() {
     (supabase.from('items') as any)
       .select('*')
       .eq('is_active', true)
+      .is('archive_reason', null)
       .order('created_at', { ascending: false }),
   ])
   const userId = authData.user?.id ?? null

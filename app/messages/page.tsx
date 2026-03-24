@@ -198,17 +198,15 @@ export default function MessagesPage() {
       setFetchError(null)
       try {
         const conversationsTable = supabase.from('conversations') as any
-        const { data: conversations, error } = await conversationsTable
-          .select(
-            '*, item:items(id, title, image_urls), buyer:profiles!buyer_id(id, name, avatar_url), seller:profiles!seller_id(id, name, avatar_url)'
-          )
+        const { data: conversations, error: convError } = await conversationsTable
+          .select('*, item:items(*)')
           .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
           .order('created_at', { ascending: false })
 
-        if (error) {
-          console.error('Ошибка загрузки чатов:', error)
+        if (convError) {
+          console.error('Ошибка загрузки чатов:', convError)
           if (active) {
-            setFetchError(error.message)
+            setFetchError(convError.message)
             setChats([])
             setIsLoading(false)
           }
@@ -216,7 +214,37 @@ export default function MessagesPage() {
         }
 
         const rows = (conversations ?? []) as ConversationRow[]
-        const visibleRows = rows.filter((conversation) => {
+        if (!rows.length) {
+          if (active) {
+            setChats([])
+            setFetchError(null)
+            setIsLoading(false)
+          }
+          return
+        }
+
+        const userIds = [...new Set(rows.flatMap((conversation) => [conversation.buyer_id, conversation.seller_id]))]
+        const { data: profiles, error: profilesError } = userIds.length
+          ? await (supabase.from('profiles') as any).select('id, name, avatar_url').in('id', userIds)
+          : { data: [], error: null }
+
+        if (profilesError) {
+          // Не блокируем список диалогов, если профили временно недоступны.
+          console.warn('Ошибка загрузки профилей для диалогов:', profilesError)
+        }
+
+        const profilesById = new Map<string, Profile>()
+        for (const profile of (profiles ?? []) as Profile[]) {
+          profilesById.set(profile.id, profile)
+        }
+
+        const enrichedRows: ConversationRow[] = rows.map((conversation) => ({
+          ...conversation,
+          buyer: profilesById.get(conversation.buyer_id) ?? null,
+          seller: profilesById.get(conversation.seller_id) ?? null,
+        }))
+
+        const visibleRows = enrichedRows.filter((conversation) => {
           const isBuyer = user.id === conversation.buyer_id
           return isBuyer ? !conversation.deleted_for_buyer : !conversation.deleted_for_seller
         })
