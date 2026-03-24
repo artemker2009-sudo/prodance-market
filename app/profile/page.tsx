@@ -46,6 +46,15 @@ const menuItems = [
   { key: 'notifications', label: 'Уведомления', icon: Bell },
 ] as const
 
+const supportTopics = [
+  'Вопрос по сайту',
+  'Техническая ошибка',
+  'Жалоба на пользователя',
+  'Другое',
+] as const
+
+type SupportTopic = (typeof supportTopics)[number]
+
 export default function ProfilePage() {
   const router = useRouter()
   const { session, profile, loading } = useAuth()
@@ -64,9 +73,18 @@ export default function ProfilePage() {
   })
   const [toastMessage, setToastMessage] = useState('')
   const [isSupportOpen, setIsSupportOpen] = useState(false)
+  const [selectedSupportTopic, setSelectedSupportTopic] = useState<SupportTopic>('Вопрос по сайту')
   const [supportMessage, setSupportMessage] = useState('')
   const [isSendingSupport, setIsSendingSupport] = useState(false)
   const user = session?.user ?? null
+  const toast = useMemo(
+    () => ({
+      success: (message: string) => {
+        setToastMessage(message)
+      },
+    }),
+    []
+  )
   const avatarUrl =
     typeof (profile as { avatar_url?: string | null } | null)?.avatar_url === 'string'
       ? ((profile as { avatar_url?: string | null }).avatar_url ?? '')
@@ -304,30 +322,48 @@ export default function ProfilePage() {
   }
 
   const handleSupportSubmit = async () => {
-    const message = supportMessage.trim()
+    const messageText = supportMessage.trim()
 
-    if (!message) {
+    if (!messageText || !user?.id) {
       return
     }
 
-    setIsSendingSupport(true)
     setError('')
+    setIsSendingSupport(true)
 
-    const { error: insertError } = await (supabase.from('support_tickets') as any).insert({
-      user_id: user.id,
-      message,
-    })
+    try {
+      const { data: ticket, error: ticketError } = await (supabase.from('support_tickets') as any)
+        .insert({
+          user_id: user.id,
+          topic: selectedSupportTopic,
+        })
+        .select()
+        .single()
 
-    setIsSendingSupport(false)
+      if (ticketError || !ticket?.id) {
+        throw new Error(ticketError?.message ?? 'Не удалось создать обращение')
+      }
 
-    if (insertError) {
-      setError(insertError.message)
-      return
+      const { error: messageError } = await (supabase.from('support_messages') as any).insert({
+        ticket_id: ticket.id,
+        sender_id: user.id,
+        text: messageText,
+      })
+
+      if (messageError) {
+        throw new Error(messageError.message)
+      }
+
+      setSupportMessage('')
+      setSelectedSupportTopic('Вопрос по сайту')
+      setIsSupportOpen(false)
+      toast.success('Обращение отправлено')
+      router.push(`/messages/support/${ticket.id}`)
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Не удалось отправить обращение')
+    } finally {
+      setIsSendingSupport(false)
     }
-
-    setSupportMessage('')
-    setIsSupportOpen(false)
-    alert('Сообщение отправлено, спасибо!')
   }
 
   const handleSignOut = async () => {
@@ -556,8 +592,10 @@ export default function ProfilePage() {
           <div className="w-full max-w-md rounded-[2rem] border border-slate-200/70 bg-white p-5 shadow-2xl shadow-slate-900/20">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-semibold tracking-tight text-slate-950">Служба поддержки</h2>
-                <p className="mt-1 text-sm text-slate-500">Опишите проблему, и мы ответим вам как можно скорее.</p>
+                <h2 className="text-xl font-semibold tracking-tight text-slate-950">
+                  Служба поддержки ProDance
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">Выберите тему и опишите проблему.</p>
               </div>
               <button
                 type="button"
@@ -568,10 +606,33 @@ export default function ProfilePage() {
               </button>
             </div>
 
+            <fieldset className="mb-4 rounded-2xl border border-slate-200 bg-[#faf7f3] p-3">
+              <legend className="px-1 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                Тема обращения
+              </legend>
+              <div className="mt-2 grid gap-2">
+                {supportTopics.map((topic) => (
+                  <label
+                    key={topic}
+                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2 py-1.5 text-sm text-slate-700 transition hover:bg-white/70"
+                  >
+                    <input
+                      type="radio"
+                      name="support-topic"
+                      checked={selectedSupportTopic === topic}
+                      onChange={() => setSelectedSupportTopic(topic)}
+                      className="h-4 w-4 accent-slate-900"
+                    />
+                    <span>{topic}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
             <textarea
               value={supportMessage}
               onChange={(event) => setSupportMessage(event.target.value)}
-              placeholder="Например: не открывается чат с продавцом..."
+              placeholder="Опишите вашу проблему..."
               className="h-36 w-full resize-none rounded-2xl border border-slate-200 bg-[#faf7f3] px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400"
             />
 

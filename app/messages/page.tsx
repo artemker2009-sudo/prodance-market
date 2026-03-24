@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { Mailbox, MoreVertical, Package } from 'lucide-react'
+import { LifeBuoy, Mailbox, MoreVertical, Package } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { useAuth } from '../components/AuthProvider'
@@ -44,6 +44,13 @@ type ConversationRow = {
   seller: Profile | null
 }
 
+type SupportTicket = {
+  id: string
+  topic: string | null
+  status: string | null
+  created_at: string | null
+}
+
 function hasConversationItem(item: ConversationRow['item']): item is Item {
   return Boolean(item && typeof item.id === 'string')
 }
@@ -61,6 +68,7 @@ export default function MessagesPage() {
   const user = session?.user ?? null
   const currentUser = user
   const [chats, setChats] = useState<Chat[]>([])
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [openMenuConversationId, setOpenMenuConversationId] = useState<string | null>(null)
@@ -79,6 +87,11 @@ export default function MessagesPage() {
     }),
     []
   )
+  const activeSupportTickets = useMemo(
+    () => supportTickets.filter((ticket) => (ticket.status ?? 'open') !== 'closed'),
+    [supportTickets]
+  )
+  const hasConversationsOrTickets = chats.length > 0 || activeSupportTickets.length > 0
 
   useEffect(() => {
     if (!toastMessage) {
@@ -198,103 +211,121 @@ export default function MessagesPage() {
       setFetchError(null)
       try {
         const conversationsTable = supabase.from('conversations') as any
-        const { data: conversations, error: convError } = await conversationsTable
-          .select('*, item:items(*)')
-          .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-          .order('created_at', { ascending: false })
+        const [conversationsResult, ticketsResult] = await Promise.all([
+          conversationsTable
+            .select('*, item:items(*)')
+            .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+            .order('created_at', { ascending: false }),
+          (supabase.from('support_tickets') as any)
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false }),
+        ])
+        const { data: conversations, error: convError } = conversationsResult
+        const { data: tickets, error: ticketsError } = ticketsResult
 
         if (convError) {
           console.error('Ошибка загрузки чатов:', convError)
           if (active) {
             setFetchError(convError.message)
             setChats([])
+            setSupportTickets([])
             setIsLoading(false)
           }
           return
         }
 
-        const rows = (conversations ?? []) as ConversationRow[]
-        if (!rows.length) {
-          if (active) {
-            setChats([])
-            setFetchError(null)
-            setIsLoading(false)
-          }
-          return
+        if (ticketsError) {
+          console.warn('Ошибка загрузки тикетов поддержки:', ticketsError)
         }
 
-        const userIds = [...new Set(rows.flatMap((conversation) => [conversation.buyer_id, conversation.seller_id]))]
-        const { data: profiles, error: profilesError } = userIds.length
-          ? await (supabase.from('profiles') as any).select('id, name, avatar_url').in('id', userIds)
-          : { data: [], error: null }
-
-        if (profilesError) {
-          // Не блокируем список диалогов, если профили временно недоступны.
-          console.warn('Ошибка загрузки профилей для диалогов:', profilesError)
-        }
-
-        const profilesById = new Map<string, Profile>()
-        for (const profile of (profiles ?? []) as Profile[]) {
-          profilesById.set(profile.id, profile)
-        }
-
-        const enrichedRows: ConversationRow[] = rows.map((conversation) => ({
-          ...conversation,
-          buyer: profilesById.get(conversation.buyer_id) ?? null,
-          seller: profilesById.get(conversation.seller_id) ?? null,
+        const mappedTickets = ((tickets ?? []) as SupportTicket[]).map((ticket) => ({
+          id: ticket.id,
+          topic: ticket.topic,
+          status: ticket.status ?? 'open',
+          created_at: ticket.created_at,
         }))
 
-        const visibleRows = enrichedRows.filter((conversation) => {
-          const isBuyer = user.id === conversation.buyer_id
-          return isBuyer ? !conversation.deleted_for_buyer : !conversation.deleted_for_seller
-        })
-        const conversationIds = visibleRows.map((row) => row.id)
+        const rows = (conversations ?? []) as ConversationRow[]
+        let mapped: Chat[] = []
 
-        const { data: recentMessages } = conversationIds.length
-          ? await (supabase.from('messages') as any)
-              .select('conversation_id, text, created_at')
-              .in('conversation_id', conversationIds)
-              .order('created_at', { ascending: false })
-          : { data: [] }
+        if (rows.length) {
+          const userIds = [
+            ...new Set(rows.flatMap((conversation) => [conversation.buyer_id, conversation.seller_id])),
+          ]
+          const { data: profiles, error: profilesError } = userIds.length
+            ? await (supabase.from('profiles') as any).select('id, name, avatar_url').in('id', userIds)
+            : { data: [], error: null }
 
-        const lastMessageByConversation = new Map<
-          string,
-          { text: string | null; created_at: string | null }
-        >()
-        for (const message of (recentMessages ?? []) as Array<{
-          conversation_id: string
-          text: string | null
-          created_at: string | null
-        }>) {
-          if (!lastMessageByConversation.has(message.conversation_id)) {
-            lastMessageByConversation.set(message.conversation_id, {
-              text: message.text,
-              created_at: message.created_at,
-            })
+          if (profilesError) {
+            // Не блокируем список диалогов, если профили временно недоступны.
+            console.warn('Ошибка загрузки профилей для диалогов:', profilesError)
           }
+
+          const profilesById = new Map<string, Profile>()
+          for (const profile of (profiles ?? []) as Profile[]) {
+            profilesById.set(profile.id, profile)
+          }
+
+          const enrichedRows: ConversationRow[] = rows.map((conversation) => ({
+            ...conversation,
+            buyer: profilesById.get(conversation.buyer_id) ?? null,
+            seller: profilesById.get(conversation.seller_id) ?? null,
+          }))
+
+          const visibleRows = enrichedRows.filter((conversation) => {
+            const isBuyer = user.id === conversation.buyer_id
+            return isBuyer ? !conversation.deleted_for_buyer : !conversation.deleted_for_seller
+          })
+          const conversationIds = visibleRows.map((row) => row.id)
+
+          const { data: recentMessages } = conversationIds.length
+            ? await (supabase.from('messages') as any)
+                .select('conversation_id, text, created_at')
+                .in('conversation_id', conversationIds)
+                .order('created_at', { ascending: false })
+            : { data: [] }
+
+          const lastMessageByConversation = new Map<
+            string,
+            { text: string | null; created_at: string | null }
+          >()
+          for (const message of (recentMessages ?? []) as Array<{
+            conversation_id: string
+            text: string | null
+            created_at: string | null
+          }>) {
+            if (!lastMessageByConversation.has(message.conversation_id)) {
+              lastMessageByConversation.set(message.conversation_id, {
+                text: message.text,
+                created_at: message.created_at,
+              })
+            }
+          }
+
+          mapped = visibleRows.map((conversation) => {
+            const isBuyer = user.id === conversation.buyer_id
+            const interlocutor = isBuyer ? conversation.seller : conversation.buyer
+            const item = conversation.item
+            const isItemAvailable = hasConversationItem(item)
+            const lastMessage = lastMessageByConversation.get(conversation.id)
+            const itemImageUrl = isItemAvailable ? item.image_urls?.[0] ?? null : null
+
+            return {
+              id: conversation.id,
+              buyerId: conversation.buyer_id,
+              itemTitle: isItemAvailable ? item.title?.trim() || 'Без названия' : 'Без названия',
+              itemImageUrl,
+              interlocutorName: interlocutor?.name?.trim() || 'Пользователь ProDance',
+              preview: lastMessage?.text?.trim() || 'Новый диалог',
+              time: lastMessage?.created_at ? formatTime(lastMessage.created_at) : '',
+            }
+          })
         }
-
-        const mapped = visibleRows.map((conversation) => {
-          const isBuyer = user.id === conversation.buyer_id
-          const interlocutor = isBuyer ? conversation.seller : conversation.buyer
-          const item = conversation.item
-          const isItemAvailable = hasConversationItem(item)
-          const lastMessage = lastMessageByConversation.get(conversation.id)
-          const itemImageUrl = isItemAvailable ? item.image_urls?.[0] ?? null : null
-
-          return {
-            id: conversation.id,
-            buyerId: conversation.buyer_id,
-            itemTitle: isItemAvailable ? item.title?.trim() || 'Без названия' : 'Без названия',
-            itemImageUrl,
-            interlocutorName: interlocutor?.name?.trim() || 'Пользователь ProDance',
-            preview: lastMessage?.text?.trim() || 'Новый диалог',
-            time: lastMessage?.created_at ? formatTime(lastMessage.created_at) : '',
-          }
-        })
 
         if (active) {
           setChats(mapped)
+          setSupportTickets(mappedTickets)
           setFetchError(null)
           setIsLoading(false)
         }
@@ -303,6 +334,7 @@ export default function MessagesPage() {
         if (active) {
           setFetchError(error instanceof Error ? error.message : 'Неизвестная ошибка')
           setChats([])
+          setSupportTickets([])
           setIsLoading(false)
         }
       }
@@ -338,8 +370,38 @@ export default function MessagesPage() {
             <div className="px-6 py-12 text-center text-sm text-slate-500">Загружаем диалоги...</div>
           ) : fetchError ? (
             <div className="text-red-500 p-4">Ошибка: {fetchError}</div>
-          ) : chats.length ? (
+          ) : hasConversationsOrTickets ? (
             <ul>
+              {activeSupportTickets.length ? (
+                <>
+                  <li className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-2">
+                    <p className="text-xs font-semibold tracking-wide text-blue-700 uppercase">
+                      Служба поддержки
+                    </p>
+                  </li>
+                  {activeSupportTickets.map((ticket) => {
+                    const statusLabel = ticket.status === 'closed' ? 'Закрыт' : 'Открыт'
+                    return (
+                      <li key={ticket.id}>
+                        <Link
+                          href={`/messages/support/${ticket.id}`}
+                          className="flex items-center gap-3 border-b border-blue-100 bg-blue-50/60 p-4 transition-colors hover:bg-blue-50"
+                        >
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                            <LifeBuoy className="h-6 w-6" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-base font-semibold text-slate-900">Поддержка ProDance</p>
+                            <p className="text-sm text-slate-700 truncate">
+                              {(ticket.topic ?? 'Без темы').trim()} - {statusLabel}
+                            </p>
+                          </div>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </>
+              ) : null}
               {chats.map((chat) => (
                 <li key={chat.id}>
                   <div className="relative flex w-full items-stretch gap-3 border-b border-slate-100 bg-white p-4 transition-colors last:border-b-0 hover:bg-slate-50/70">
