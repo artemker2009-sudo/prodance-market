@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Loader2, Plus, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 
-import { useAuth } from '../../components/AuthProvider'
 import { supabase } from '../../lib/supabase'
 
 type EditableItem = {
@@ -34,8 +33,6 @@ const deleteReasonOptions = [
 export default function EditItemPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
-  const { session, loading } = useAuth()
-  const currentUser = session?.user ?? null
   const itemId = typeof params?.id === 'string' ? params.id : ''
 
   const [item, setItem] = useState<EditableItem | null>(null)
@@ -50,7 +47,8 @@ export default function EditItemPage() {
   const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([])
   const [newPreviewUrls, setNewPreviewUrls] = useState<string[]>([])
   const previewUrlsRef = useRef<string[]>([])
-  const [isLoadingItem, setIsLoadingItem] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
+  const [ownerUserId, setOwnerUserId] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState('')
@@ -100,11 +98,7 @@ export default function EditItemPage() {
   }, [toastMessage])
 
   useEffect(() => {
-    if (loading) {
-      return
-    }
-
-    if (!currentUser?.id || !itemId) {
+    if (!itemId) {
       router.push('/')
       return
     }
@@ -112,47 +106,55 @@ export default function EditItemPage() {
     let active = true
 
     const loadItem = async () => {
-      setIsLoadingItem(true)
+      setIsLoading(true)
 
-      const { data, error: itemError } = await (supabase.from('items') as any)
-        .select('id, seller_id, title, price, description, image_urls, category, gender, size, location_address')
-        .eq('id', itemId)
-        .maybeSingle()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
       if (!active) {
         return
       }
 
-      if (itemError || !data) {
+      if (!user) {
+        router.push('/login')
+        return
+      }
+
+      const { data: nextItem, error: itemError } = await (supabase.from('items') as any)
+        .select('*')
+        .eq('id', itemId)
+        .single()
+
+      if (!active) {
+        return
+      }
+
+      if (itemError || !nextItem || nextItem.seller_id !== user.id) {
         router.push('/')
         return
       }
 
-      const nextItem = data as EditableItem
-
-      if (nextItem.seller_id !== currentUser.id) {
-        router.push('/')
-        return
-      }
-
-      setItem(nextItem)
-      setTitle(nextItem.title ?? '')
-      setPrice(String(nextItem.price ?? ''))
-      setDescription(nextItem.description ?? '')
+      const editableItem = nextItem as EditableItem
+      setOwnerUserId(user.id)
+      setItem(editableItem)
+      setTitle(editableItem.title ?? '')
+      setPrice(String(editableItem.price ?? ''))
+      setDescription(editableItem.description ?? '')
       setCategory(
-        (categories as readonly string[]).includes(nextItem.category ?? '')
-          ? (nextItem.category as (typeof categories)[number])
+        (categories as readonly string[]).includes(editableItem.category ?? '')
+          ? (editableItem.category as (typeof categories)[number])
           : 'Турнирное'
       )
       setGender(
-        (genders as readonly string[]).includes(nextItem.gender ?? '')
-          ? (nextItem.gender as (typeof genders)[number])
+        (genders as readonly string[]).includes(editableItem.gender ?? '')
+          ? (editableItem.gender as (typeof genders)[number])
           : 'Женское'
       )
-      setSize(nextItem.size ?? '')
-      setLocationAddress(nextItem.location_address ?? '')
-      setImageUrls(Array.isArray(nextItem.image_urls) ? nextItem.image_urls : [])
-      setIsLoadingItem(false)
+      setSize(editableItem.size ?? '')
+      setLocationAddress(editableItem.location_address ?? '')
+      setImageUrls(Array.isArray(editableItem.image_urls) ? editableItem.image_urls : [])
+      setIsLoading(false)
     }
 
     void loadItem()
@@ -160,7 +162,7 @@ export default function EditItemPage() {
     return () => {
       active = false
     }
-  }, [currentUser?.id, itemId, loading, router])
+  }, [itemId, router])
 
   const handleNewPhotosChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? [])
@@ -194,7 +196,7 @@ export default function EditItemPage() {
     event.preventDefault()
     setError('')
 
-    if (!item || !currentUser?.id) {
+    if (!item || !ownerUserId) {
       setError('Не удалось определить объявление')
       return
     }
@@ -270,7 +272,7 @@ export default function EditItemPage() {
   }
 
   const handleDelete = async () => {
-    if (!item || !currentUser?.id) {
+    if (!item || !ownerUserId) {
       return
     }
 
@@ -279,7 +281,7 @@ export default function EditItemPage() {
 
     try {
       const { error: statsError } = await (supabase.from('deleted_items_stats') as any).insert({
-        seller_id: currentUser.id,
+        seller_id: ownerUserId,
         title: item.title,
         price: item.price,
         reason: selectedReason,
@@ -303,13 +305,7 @@ export default function EditItemPage() {
     }
   }
 
-  if (isLoadingItem || loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#faf7f3] px-4 pb-28">
-        <p className="text-sm text-slate-500">Загрузка объявления...</p>
-      </main>
-    )
-  }
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center">Загрузка...</div>
 
   if (!item) {
     return null
