@@ -15,7 +15,14 @@ type EditableItem = {
   price: number
   description: string | null
   image_urls: string[] | null
+  category: string | null
+  gender: string | null
+  size: string | null
+  location_address: string | null
 }
+
+const categories = ['Турнирное', 'Тренировочное', 'Одежда', 'Обувь', 'Аксессуары'] as const
+const genders = ['Мужское', 'Женское', 'Унисекс', 'Детское'] as const
 
 const deleteReasonOptions = [
   'Продал на ProDance',
@@ -35,6 +42,10 @@ export default function EditItemPage() {
   const [title, setTitle] = useState('')
   const [price, setPrice] = useState('')
   const [description, setDescription] = useState('')
+  const [category, setCategory] = useState<(typeof categories)[number]>('Турнирное')
+  const [gender, setGender] = useState<(typeof genders)[number]>('Женское')
+  const [size, setSize] = useState('')
+  const [locationAddress, setLocationAddress] = useState('')
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([])
   const [newPreviewUrls, setNewPreviewUrls] = useState<string[]>([])
@@ -104,7 +115,7 @@ export default function EditItemPage() {
       setIsLoadingItem(true)
 
       const { data, error: itemError } = await (supabase.from('items') as any)
-        .select('id, seller_id, title, price, description, image_urls')
+        .select('id, seller_id, title, price, description, image_urls, category, gender, size, location_address')
         .eq('id', itemId)
         .maybeSingle()
 
@@ -128,6 +139,18 @@ export default function EditItemPage() {
       setTitle(nextItem.title ?? '')
       setPrice(String(nextItem.price ?? ''))
       setDescription(nextItem.description ?? '')
+      setCategory(
+        (categories as readonly string[]).includes(nextItem.category ?? '')
+          ? (nextItem.category as (typeof categories)[number])
+          : 'Турнирное'
+      )
+      setGender(
+        (genders as readonly string[]).includes(nextItem.gender ?? '')
+          ? (nextItem.gender as (typeof genders)[number])
+          : 'Женское'
+      )
+      setSize(nextItem.size ?? '')
+      setLocationAddress(nextItem.location_address ?? '')
       setImageUrls(Array.isArray(nextItem.image_urls) ? nextItem.image_urls : [])
       setIsLoadingItem(false)
     }
@@ -179,10 +202,12 @@ export default function EditItemPage() {
     const normalizedTitle = title.trim()
     const normalizedPrice = price.trim()
     const normalizedDescription = description.trim()
+    const normalizedSize = size.trim()
+    const normalizedLocationAddress = locationAddress.trim()
     const numericPrice = Number(normalizedPrice)
 
-    if (!normalizedTitle || !normalizedPrice) {
-      setError('Заполните название и цену')
+    if (!normalizedTitle || !normalizedPrice || !normalizedSize || !normalizedLocationAddress) {
+      setError('Заполните обязательные поля: название, цену, размер и адрес')
       return
     }
 
@@ -221,8 +246,12 @@ export default function EditItemPage() {
       const { error: updateError } = await (supabase.from('items') as any)
         .update({
           title: normalizedTitle,
+          category,
+          gender,
+          size: normalizedSize,
           price: numericPrice,
           description: normalizedDescription || null,
+          location_address: normalizedLocationAddress,
           image_urls: nextImageUrls,
         })
         .eq('id', item.id)
@@ -287,7 +316,7 @@ export default function EditItemPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#faf7f3] pb-56 text-slate-950">
+    <main className="min-h-screen bg-[#faf7f3] pb-64 text-slate-950">
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-[#faf7f3]/95 backdrop-blur">
         <div className="flex items-center gap-3 px-4 py-4">
           <Link
@@ -430,43 +459,124 @@ export default function EditItemPage() {
             />
           </div>
 
+          <div>
+            <p className="mb-2 text-sm font-medium text-slate-600">Категория</p>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((itemCategory) => {
+                const isActive = itemCategory === category
+
+                return (
+                  <button
+                    key={itemCategory}
+                    type="button"
+                    onClick={() => setCategory(itemCategory)}
+                    className={`min-h-11 rounded-full px-4 py-2.5 text-sm font-medium ${
+                      isActive
+                        ? 'bg-slate-950 text-white shadow-sm'
+                        : 'border border-slate-200 bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    {itemCategory}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-medium text-slate-600">Пол</p>
+            <div className="flex flex-wrap gap-2">
+              {genders.map((itemGender) => {
+                const isActive = itemGender === gender
+
+                return (
+                  <button
+                    key={itemGender}
+                    type="button"
+                    onClick={() => setGender(itemGender)}
+                    className={`min-h-11 rounded-full px-4 py-2.5 text-sm font-medium ${
+                      isActive
+                        ? 'bg-slate-950 text-white shadow-sm'
+                        : 'border border-slate-200 bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    {itemGender}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="size" className="mb-2 block text-sm font-medium text-slate-600">
+              Размер
+            </label>
+            <input
+              id="size"
+              name="size"
+              type="text"
+              value={size}
+              onChange={(event) => setSize(event.target.value)}
+              className="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-base outline-none placeholder:text-slate-400 focus:border-slate-950 focus:bg-white"
+              placeholder="Например, S / 36 / 42"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="location_address" className="mb-2 block text-sm font-medium text-slate-600">
+              Место встречи / Адрес
+            </label>
+            <input
+              id="location_address"
+              name="location_address"
+              type="text"
+              value={locationAddress}
+              onChange={(event) => setLocationAddress(event.target.value)}
+              className="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-base outline-none placeholder:text-slate-400 focus:border-slate-950 focus:bg-white"
+              placeholder="Укажите адрес (город, улица, дом)"
+              required
+            />
+          </div>
+
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </section>
       </form>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-2">
+      <div className="fixed bottom-[70px] left-0 w-full bg-white border-t border-gray-100 p-4 z-40 flex flex-col gap-3 pb-[calc(env(safe-area-inset-bottom)+16px)]">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-3">
           <button
             type="submit"
             form="edit-item-form"
             disabled={isSubmitting || isDeleting}
-            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             <span>Сохранить изменения</span>
           </button>
 
-          <div className="grid grid-cols-2 gap-2">
-            <Link
-              href="/profile"
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Отменить
-            </Link>
-            <button
-              type="button"
-              onClick={() => setIsDeleteModalOpen(true)}
-              disabled={isSubmitting || isDeleting}
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
-            >
-              Удалить объявление
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            disabled={isSubmitting || isDeleting}
+            className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-60"
+          >
+            Отменить изменения
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsDeleteModalOpen(true)}
+            disabled={isSubmitting || isDeleting}
+            className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-transparent px-4 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+          >
+            Удалить объявление
+          </button>
         </div>
       </div>
 
       {isDeleteModalOpen ? (
-        <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center">
           <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
             <h2 className="text-lg font-semibold text-slate-900">Почему вы удаляете объявление?</h2>
 
