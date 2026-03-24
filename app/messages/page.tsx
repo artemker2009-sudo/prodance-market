@@ -87,11 +87,7 @@ export default function MessagesPage() {
     }),
     []
   )
-  const activeSupportTickets = useMemo(
-    () => supportTickets.filter((ticket) => (ticket.status ?? 'open') !== 'closed'),
-    [supportTickets]
-  )
-  const hasConversationsOrTickets = chats.length > 0 || activeSupportTickets.length > 0
+  const hasConversationsOrTickets = chats.length > 0 || supportTickets.length > 0
 
   useEffect(() => {
     if (!toastMessage) {
@@ -201,7 +197,7 @@ export default function MessagesPage() {
   }, [loading, router, user])
 
   useEffect(() => {
-    if (!user?.id) {
+    if (!currentUser?.id) {
       return
     }
 
@@ -211,18 +207,15 @@ export default function MessagesPage() {
       setFetchError(null)
       try {
         const conversationsTable = supabase.from('conversations') as any
-        const [conversationsResult, ticketsResult] = await Promise.all([
-          conversationsTable
-            .select('*, item:items(*)')
-            .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-            .order('created_at', { ascending: false }),
-          (supabase.from('support_tickets') as any)
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false }),
-        ])
-        const { data: conversations, error: convError } = conversationsResult
-        const { data: tickets, error: ticketsError } = ticketsResult
+        const { data: conversations, error: convError } = await conversationsTable
+          .select('*, item:items(*)')
+          .or(`buyer_id.eq.${currentUser.id},seller_id.eq.${currentUser.id}`)
+          .order('created_at', { ascending: false })
+        const { data: tickets } = await supabase
+          .from('support_tickets')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false })
 
         if (convError) {
           console.error('Ошибка загрузки чатов:', convError)
@@ -233,10 +226,6 @@ export default function MessagesPage() {
             setIsLoading(false)
           }
           return
-        }
-
-        if (ticketsError) {
-          console.warn('Ошибка загрузки тикетов поддержки:', ticketsError)
         }
 
         const mappedTickets = ((tickets ?? []) as SupportTicket[]).map((ticket) => ({
@@ -274,7 +263,7 @@ export default function MessagesPage() {
           }))
 
           const visibleRows = enrichedRows.filter((conversation) => {
-            const isBuyer = user.id === conversation.buyer_id
+            const isBuyer = currentUser.id === conversation.buyer_id
             return isBuyer ? !conversation.deleted_for_buyer : !conversation.deleted_for_seller
           })
           const conversationIds = visibleRows.map((row) => row.id)
@@ -304,7 +293,7 @@ export default function MessagesPage() {
           }
 
           mapped = visibleRows.map((conversation) => {
-            const isBuyer = user.id === conversation.buyer_id
+            const isBuyer = currentUser.id === conversation.buyer_id
             const interlocutor = isBuyer ? conversation.seller : conversation.buyer
             const item = conversation.item
             const isItemAvailable = hasConversationItem(item)
@@ -345,7 +334,7 @@ export default function MessagesPage() {
     return () => {
       active = false
     }
-  }, [user?.id])
+  }, [currentUser?.id])
 
   if (loading || !user) {
     return (
@@ -371,40 +360,54 @@ export default function MessagesPage() {
           ) : fetchError ? (
             <div className="text-red-500 p-4">Ошибка: {fetchError}</div>
           ) : hasConversationsOrTickets ? (
-            <ul>
-              {activeSupportTickets.length ? (
-                <>
-                  <li className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-2">
-                    <p className="text-xs font-semibold tracking-wide text-blue-700 uppercase">
-                      Служба поддержки
-                    </p>
-                  </li>
-                  {activeSupportTickets.map((ticket) => {
-                    const statusLabel = ticket.status === 'closed' ? 'Закрыт' : 'Открыт'
-                    return (
-                      <li key={ticket.id}>
-                        <Link
-                          href={`/messages/support/${ticket.id}`}
-                          className="flex items-center gap-3 border-b border-blue-100 bg-blue-50/60 p-4 transition-colors hover:bg-blue-50"
-                        >
-                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                            <LifeBuoy className="h-6 w-6" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-base font-semibold text-slate-900">Поддержка ProDance</p>
-                            <p className="text-sm text-slate-700 truncate">
-                              {(ticket.topic ?? 'Без темы').trim()} - {statusLabel}
-                            </p>
-                          </div>
-                        </Link>
-                      </li>
-                    )
-                  })}
-                </>
+            <div className="space-y-5 p-4">
+              {supportTickets.length ? (
+                <section className="space-y-3">
+                  <p className="text-xs font-semibold tracking-[0.12em] text-blue-700 uppercase">
+                    Служба поддержки
+                  </p>
+                  <ul className="space-y-3">
+                    {supportTickets.map((ticket) => {
+                      const isClosed = ticket.status === 'closed'
+                      const statusLabel = isClosed ? 'Закрыт' : 'Открыт'
+                      return (
+                        <li key={ticket.id}>
+                          <Link
+                            href={`/messages/support/${ticket.id}`}
+                            className="flex items-center gap-3 rounded-2xl border border-blue-200/70 bg-blue-50/50 p-4 shadow-sm transition-colors hover:bg-blue-100/60"
+                          >
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                              <LifeBuoy className="h-6 w-6" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-base font-semibold text-slate-900">Поддержка ProDance</p>
+                              <p className="truncate text-sm text-slate-700">
+                                {(ticket.topic ?? 'Без темы').trim()}
+                              </p>
+                              <div className="mt-1 flex items-center gap-2">
+                                <span
+                                  className={`h-2.5 w-2.5 rounded-full ${
+                                    isClosed ? 'bg-slate-400' : 'bg-emerald-500'
+                                  }`}
+                                  aria-hidden="true"
+                                />
+                                <span className="text-xs font-medium text-slate-600">{statusLabel}</span>
+                              </div>
+                            </div>
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </section>
               ) : null}
-              {chats.map((chat) => (
-                <li key={chat.id}>
-                  <div className="relative flex w-full items-stretch gap-3 border-b border-slate-100 bg-white p-4 transition-colors last:border-b-0 hover:bg-slate-50/70">
+              {chats.length ? (
+                <section className="space-y-3">
+                  <p className="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">Диалоги</p>
+                  <ul className="space-y-3">
+                    {chats.map((chat) => (
+                      <li key={chat.id}>
+                        <div className="relative flex w-full items-stretch gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-colors hover:bg-slate-50/70">
                     <Link href={`/messages/${chat.id}`} className="flex min-w-0 flex-1 items-stretch gap-3">
                       <div className="relative h-14 w-14 shrink-0 self-center overflow-hidden rounded-full bg-slate-100">
                         {chat.itemImageUrl ? (
@@ -479,10 +482,13 @@ export default function MessagesPage() {
                         </div>
                       ) : null}
                     </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+            </div>
           ) : (
             <div className="flex min-h-[28rem] flex-col items-center justify-center px-6 py-10 text-center">
               <div className="flex h-20 w-20 items-center justify-center rounded-full border border-slate-200/70 bg-[#faf7f3] text-slate-400">
