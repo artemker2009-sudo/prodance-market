@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 import { supabase } from '../../lib/supabase'
 
@@ -9,6 +10,10 @@ type SupportMessageRow = {
   text: string | null
   is_admin: boolean | null
   created_at: string | null
+}
+
+type RealtimeSupportMessage = SupportMessageRow & {
+  ticket_id: string | null
 }
 
 type SupportMessagesRealtimeProps = {
@@ -38,43 +43,66 @@ export default function SupportMessagesRealtime({
 }: SupportMessagesRealtimeProps) {
   const [messages, setMessages] = useState<SupportMessageRow[]>(initialMessages)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     setMessages(initialMessages)
   }, [initialMessages, ticketId])
 
   useEffect(() => {
-    if (!ticketId) {
-      return
-    }
-
-    const channel = supabase
-      .channel(`admin_support_chat_${ticketId}`)
+    // Глобальная подписка для админки: ловим все новые сообщения поддержки.
+    const messageChannel = supabase
+      .channel('admin_global_support_messages')
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'support_messages',
-          filter: `ticket_id=eq.${ticketId}`,
         },
         (payload) => {
           setMessages((prev) => {
-            const nextMessage = payload.new as SupportMessageRow
+            const nextMessage = payload.new as RealtimeSupportMessage
             if (prev.some((message) => message.id === nextMessage.id)) {
               return prev
             }
 
-            return [...prev, nextMessage]
+            // В текущем окне чата показываем только сообщения выбранного тикета.
+            if (ticketId && nextMessage.ticket_id === ticketId) {
+              return [...prev, nextMessage]
+            }
+
+            return prev
           })
+
+          // Обновляем список тикетов в админке (поднятие активного наверх/новые превью).
+          if (!ticketId || (payload.new as RealtimeSupportMessage).ticket_id !== ticketId) {
+            router.refresh()
+          }
+        }
+      )
+      .subscribe()
+
+    const ticketChannel = supabase
+      .channel('admin_global_support_tickets')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'support_tickets',
+        },
+        () => {
+          router.refresh()
         }
       )
       .subscribe()
 
     return () => {
-      void supabase.removeChannel(channel)
+      void supabase.removeChannel(messageChannel)
+      void supabase.removeChannel(ticketChannel)
     }
-  }, [ticketId])
+  }, [ticketId, router])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
