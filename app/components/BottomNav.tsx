@@ -5,8 +5,8 @@ import { usePathname } from 'next/navigation'
 import {
   CirclePlus,
   House,
+  LayoutGrid,
   MessageCircle,
-  Search,
   UserRound,
 } from 'lucide-react'
 
@@ -30,10 +30,10 @@ const navItems: NavItem[] = [
     match: (pathname) => pathname === '/',
   },
   {
-    href: '/search',
-    label: 'Поиск',
-    icon: Search,
-    match: (pathname) => pathname.startsWith('/search'),
+    href: '/catalog',
+    label: 'Каталог',
+    icon: LayoutGrid,
+    match: (pathname) => pathname.startsWith('/catalog'),
   },
   {
     href: '/create',
@@ -64,7 +64,7 @@ export function BottomNav() {
   const { session } = useAuth()
 
   return (
-    <nav className="fixed bottom-0 left-1/2 z-50 flex w-full max-w-[480px] -translate-x-1/2 justify-around border-t border-gray-200 bg-white pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)] shadow-xl md:hidden">
+    <nav className="fixed bottom-0 left-1/2 z-50 flex w-full max-w-[480px] -translate-x-1/2 justify-around border-t border-white/70 bg-white/90 pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)] shadow-[0_-14px_36px_-26px_rgba(15,23,42,0.35)] backdrop-blur-lg md:hidden">
       {navItems.map(({ href, label, icon: Icon, match, isAccent, requiresAuth }) => {
         const isActive = match(pathname)
         const resolvedHref =
