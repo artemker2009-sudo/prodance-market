@@ -1,18 +1,18 @@
 'use client'
 
-import Image from 'next/image'
-import Link from 'next/link'
 import { useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
-  ChevronRight,
   Flag,
+  Heart,
+  List,
   Loader2,
+  MapPin,
   MessageCircle,
   Phone,
+  SendHorizontal,
   Share2,
-  Star,
 } from 'lucide-react'
 
 import { useAuth } from '../../components/AuthProvider'
@@ -46,10 +46,11 @@ type ItemPageContentProps = {
 }
 
 const reportReasons = ['Мошенничество', 'Спам', 'Товар продан', 'Другое'] as const
+const quickQuestions = ['Ещё продаёте?', 'Торг уместен?', 'Когда можно посмотреть?', 'Пришлёте видео?'] as const
 
 function ProductImagePlaceholder() {
   return (
-    <div className="relative aspect-square w-full overflow-hidden bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 md:aspect-video">
+    <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.95),_transparent_45%),linear-gradient(180deg,rgba(255,255,255,0.3),rgba(226,232,240,0.9))]" />
       <div className="absolute inset-x-8 top-8 h-20 rounded-full bg-white/60 blur-3xl" />
       <div className="absolute inset-x-0 bottom-0 flex h-28 items-end justify-center pb-8">
@@ -69,6 +70,7 @@ export function ItemPageContent({ item, seller }: ItemPageContentProps) {
   const [selectedReason, setSelectedReason] = useState<(typeof reportReasons)[number]>('Мошенничество')
   const [isReporting, setIsReporting] = useState(false)
   const [isMessageLoading, setIsMessageLoading] = useState(false)
+  const [askMessage, setAskMessage] = useState('')
   const [toastMessage, setToastMessage] = useState('')
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success')
 
@@ -92,18 +94,22 @@ export function ItemPageContent({ item, seller }: ItemPageContentProps) {
     []
   )
 
-  const mapImageUrl = useMemo(() => {
+  const mapUrl = useMemo(() => {
     if (
-      typeof item.latitude !== 'number' ||
-      !Number.isFinite(item.latitude) ||
-      typeof item.longitude !== 'number' ||
-      !Number.isFinite(item.longitude)
+      typeof item.latitude === 'number' &&
+      Number.isFinite(item.latitude) &&
+      typeof item.longitude === 'number' &&
+      Number.isFinite(item.longitude)
     ) {
-      return null
+      return `https://yandex.ru/maps/?ll=${item.longitude},${item.latitude}&z=16&pt=${item.longitude},${item.latitude},pm2rdm`
     }
 
-    return `https://static-maps.yandex.ru/1.x/?lang=ru_RU&ll=${item.longitude},${item.latitude}&z=15&size=650,260&l=map&pt=${item.longitude},${item.latitude},pm2rdm`
-  }, [item.latitude, item.longitude])
+    if (item.address.trim()) {
+      return `https://yandex.ru/maps/?text=${encodeURIComponent(item.address)}`
+    }
+
+    return null
+  }, [item.address, item.latitude, item.longitude])
 
   const handleShare = async () => {
     const shareUrl = window.location.href
@@ -206,163 +212,196 @@ export function ItemPageContent({ item, seller }: ItemPageContentProps) {
     toast.error(error?.message || 'Не удалось открыть чат')
   }
 
+  const handleAskSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    void handleMessageClick()
+    setAskMessage('')
+  }
+
+  const handleQuickQuestionClick = () => {
+    void handleMessageClick()
+  }
+
   return (
-    <main className="min-h-screen bg-white pb-40 text-slate-900">
-      <header className="fixed left-1/2 top-0 z-50 w-full max-w-[480px] -translate-x-1/2 border-b border-slate-200/70 bg-white/95 px-4 py-3 backdrop-blur">
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => {
-              if (window.history.length > 1) {
-                router.back()
-                return
-              }
-              router.push('/')
-            }}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700"
-            aria-label="Назад"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void handleShare()}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700"
-              aria-label="Поделиться"
-            >
-              <Share2 className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              onClick={handleOpenReportModal}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700"
-              aria-label="Пожаловаться"
-            >
-              <Flag className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto w-full max-w-[480px] pt-[72px]">
-        <section className="bg-white">
+    <main className="min-h-screen bg-white pb-44 text-slate-900">
+      <div className="mx-auto w-full max-w-[480px]">
+        <section className="relative">
           {item.imageUrls.length > 0 ? (
             <ItemImageGallery imageUrls={item.imageUrls} title={item.title} />
           ) : (
             <ProductImagePlaceholder />
           )}
+
+          <header className="pointer-events-none absolute inset-x-0 top-0 z-30 px-3 pt-[calc(env(safe-area-inset-top)+8px)]">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.history.length > 1) {
+                    router.back()
+                    return
+                  }
+                  router.push('/')
+                }}
+                className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur"
+                aria-label="Назад"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+
+              <div className="pointer-events-auto flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleShare()}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur"
+                  aria-label="Поделиться"
+                >
+                  <Share2 className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toast.success('Списки появятся в следующем обновлении')}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur"
+                  aria-label="Добавить в список"
+                >
+                  <List className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toast.success('Избранное появится в следующем обновлении')}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur"
+                  aria-label="В избранное"
+                >
+                  <Heart className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenReportModal}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur"
+                  aria-label="Пожаловаться"
+                >
+                  <Flag className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          </header>
         </section>
 
-        <section className="space-y-4 p-4">
+        <section className="space-y-6 p-4">
           <div>
-            <p className="text-3xl font-bold">{new Intl.NumberFormat('ru-RU').format(item.price)} ₽</p>
-            <h1 className="mt-2 text-lg font-normal text-gray-700">{item.title}</h1>
-            <p className="mt-2 text-sm text-gray-500">{item.createdAtText}</p>
+            <p className="text-3xl font-extrabold">{new Intl.NumberFormat('ru-RU').format(item.price)} ₽</p>
+            <h1 className="mt-2 text-lg text-slate-900">{item.title}</h1>
           </div>
 
-          <hr className="border-slate-200" />
-
-          <div>
-            <h2 className="mb-3 text-lg font-semibold">Характеристики</h2>
-            <ul className="space-y-3">
-              {[
-                { label: 'Категория', value: item.category },
-                { label: 'Пол', value: item.gender },
-                { label: 'Размер', value: item.size },
-                { label: 'Состояние', value: item.condition },
-              ].map((spec) => (
-                <li key={spec.label} className="grid grid-cols-2 items-start gap-4">
-                  <span className="text-sm text-slate-500">{spec.label}</span>
-                  <span className="text-right text-sm font-semibold text-slate-900">{spec.value}</span>
-                </li>
-              ))}
-            </ul>
+          <div className="space-y-3 border-b border-slate-100 pb-5">
+            <div className="flex items-center gap-2">
+              <p className="text-2xl font-bold text-slate-900">{seller.name || 'Собственник'}</p>
+              <span className="text-sm font-medium text-[#00AA5B]">в сети</span>
+            </div>
+            <p className="text-sm text-slate-500">★ 5.0  2 отзыва</p>
           </div>
 
-          <hr className="border-slate-200" />
+          {!isOwnItem ? (
+            <div className="grid grid-cols-2 gap-3">
+              {seller.phone ? (
+                <a
+                  href={`tel:${seller.phone}`}
+                  className="inline-flex items-center justify-center rounded-xl bg-[#00AA5B] py-3 font-semibold text-white"
+                >
+                  Позвонить
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex items-center justify-center rounded-xl bg-slate-300 py-3 font-semibold text-slate-600"
+                >
+                  Позвонить
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleMessageClick()}
+                disabled={isMessageLoading || !item.sellerId}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00AAFF] py-3 font-semibold text-white disabled:opacity-60"
+              >
+                {isMessageLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                <span>Написать</span>
+              </button>
+            </div>
+          ) : null}
 
-          <div>
-            <h2 className="mb-3 text-lg font-semibold">Описание</h2>
-            <p className="whitespace-pre-wrap text-base text-gray-800">{item.description}</p>
-          </div>
-
-          <hr className="border-slate-200" />
-
-          <div>
-            <h2 className="mb-3 text-lg font-semibold">Место встречи</h2>
-            <p className="text-sm text-slate-700">{item.address}</p>
-            {mapImageUrl ? (
-              <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
-                <Image
-                  src={mapImageUrl}
-                  alt={`Карта: ${item.address}`}
-                  width={650}
-                  height={260}
-                  className="h-auto w-full object-cover"
-                  unoptimized
-                />
-              </div>
+          <div className="space-y-2 border-b border-slate-100 pb-5">
+            <div className="flex items-center gap-2 text-slate-700">
+              <MapPin className="h-4 w-4 text-red-500" />
+              <p className="text-sm">
+                {item.address} • <span className="text-slate-500">11-15 мин.</span>
+              </p>
+            </div>
+            {mapUrl ? (
+              <a
+                href={mapUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-medium text-[#00AAFF]"
+              >
+                Показать на карте
+              </a>
             ) : null}
           </div>
 
-          <Link
-            href={item.sellerId ? `/profile/${item.sellerId}` : '#'}
-            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3"
-          >
-            <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-lg font-semibold text-slate-700">
-              {seller.avatarUrl ? (
-                <Image
-                  src={seller.avatarUrl}
-                  alt={seller.name}
-                  width={56}
-                  height={56}
-                  className="h-14 w-14 rounded-full object-cover"
-                  unoptimized
-                />
-              ) : (
-                <span>{seller.name.charAt(0).toUpperCase() || 'П'}</span>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-semibold text-slate-900">{seller.name}</p>
-              <div className="mt-1 flex items-center gap-0.5 text-amber-400">
-                <Star className="h-4 w-4 fill-current" />
-                <Star className="h-4 w-4 fill-current" />
-                <Star className="h-4 w-4 fill-current" />
-                <Star className="h-4 w-4 fill-current" />
-                <Star className="h-4 w-4 text-amber-200" />
-                <span className="ml-2 text-xs text-slate-500">Рейтинг продавца</span>
+          <div className="space-y-3 border-b border-slate-100 pb-5">
+            <h2 className="text-2xl font-bold">Описание</h2>
+            <p className="whitespace-pre-wrap text-base text-slate-800">{item.description}</p>
+          </div>
+
+          {!isOwnItem ? (
+            <div className="pb-6">
+              <h2 className="mb-4 text-2xl font-bold">Спросите у продавца</h2>
+              <form onSubmit={handleAskSubmit}>
+                <div className="flex items-center rounded-xl bg-slate-100 px-4 py-3">
+                  <input
+                    value={askMessage}
+                    onChange={(event) => setAskMessage(event.target.value)}
+                    placeholder="Здравствуйте!"
+                    className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isMessageLoading || !item.sellerId}
+                    className="inline-flex h-8 w-8 items-center justify-center text-slate-500 disabled:opacity-60"
+                    aria-label="Отправить сообщение продавцу"
+                  >
+                    <SendHorizontal className="h-4 w-4" />
+                  </button>
+                </div>
+              </form>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                {quickQuestions.map((question) => (
+                  <button
+                    type="button"
+                    key={question}
+                    onClick={handleQuickQuestionClick}
+                    disabled={isMessageLoading || !item.sellerId}
+                    className="rounded-full bg-[#1A1A1A] px-4 py-2 text-sm text-white disabled:opacity-60"
+                  >
+                    {question}
+                  </button>
+                ))}
               </div>
             </div>
-            <div className="flex items-center gap-1 text-sm font-medium text-slate-700">
-              <span>Visit profile</span>
-              <ChevronRight className="h-4 w-4" />
-            </div>
-          </Link>
-
-          <hr className="border-slate-200" />
+          ) : null}
         </section>
       </div>
 
       {!isOwnItem ? (
-        <div className="fixed bottom-[env(safe-area-inset-bottom)] left-1/2 z-40 w-full max-w-[480px] -translate-x-1/2 border-t border-slate-200 bg-white px-4 py-3 shadow-[0_-6px_24px_rgba(15,23,42,0.08)]">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => void handleMessageClick()}
-              disabled={isMessageLoading || !item.sellerId}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {isMessageLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-              <span>Написать</span>
-            </button>
-
+        <div className="fixed bottom-0 left-1/2 z-40 w-full max-w-[480px] -translate-x-1/2 border-t border-slate-200 bg-white px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)] shadow-[0_-6px_24px_rgba(15,23,42,0.08)]">
+          <div className="grid grid-cols-2 gap-3">
             {seller.phone ? (
               <a
                 href={`tel:${seller.phone}`}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-semibold text-white"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#00AA5B] text-sm font-semibold text-white"
               >
                 <Phone className="h-4 w-4" />
                 <span>Позвонить</span>
@@ -377,6 +416,15 @@ export function ItemPageContent({ item, seller }: ItemPageContentProps) {
                 <span>Позвонить</span>
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => void handleMessageClick()}
+              disabled={isMessageLoading || !item.sellerId}
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#00AAFF] text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {isMessageLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+              <span>Написать</span>
+            </button>
           </div>
         </div>
       ) : null}

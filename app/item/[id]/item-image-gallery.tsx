@@ -57,7 +57,7 @@ export function ItemImageGallery({ imageUrls, title, topRightActions }: ItemImag
                 setFullscreenIndex(index)
                 setIsFullscreenOpen(true)
               }}
-              className="relative aspect-square min-w-full snap-center bg-slate-100 md:aspect-video"
+              className="relative aspect-[4/3] min-w-full snap-center bg-slate-100"
               aria-label={`Открыть фото ${index + 1} на весь экран`}
             >
               <Image
@@ -72,8 +72,8 @@ export function ItemImageGallery({ imageUrls, title, topRightActions }: ItemImag
           ))}
         </div>
 
-        <div className="pointer-events-none absolute left-3 top-3 z-20 rounded-full bg-black/50 px-2 py-1 text-xs font-medium text-white">
-          {safeActiveIndex + 1} / {imageUrls.length}
+        <div className="pointer-events-none absolute left-3 top-3 z-20 rounded-md bg-black/50 px-2 py-1 text-xs font-medium text-white">
+          {safeActiveIndex + 1} из {imageUrls.length}
         </div>
 
         {topRightActions ? (
