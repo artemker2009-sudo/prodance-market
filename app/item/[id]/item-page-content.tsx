@@ -4,7 +4,6 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
-  Flag,
   Heart,
   List,
   Loader2,
@@ -67,7 +66,8 @@ export function ItemPageContent({ item, seller }: ItemPageContentProps) {
   const isOwnItem = currentUserId && item.sellerId ? currentUserId === item.sellerId : false
 
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
-  const [selectedReason, setSelectedReason] = useState<(typeof reportReasons)[number]>('Мошенничество')
+  const [selectedReason, setSelectedReason] = useState<(typeof reportReasons)[number] | ''>('')
+  const [comment, setComment] = useState('')
   const [isReporting, setIsReporting] = useState(false)
   const [isMessageLoading, setIsMessageLoading] = useState(false)
   const [askMessage, setAskMessage] = useState('')
@@ -132,40 +132,46 @@ export function ItemPageContent({ item, seller }: ItemPageContentProps) {
     }
   }
 
-  const handleOpenReportModal = () => {
-    if (!currentUserId) {
-      router.push(buildLoginRedirectHref(`/item/${item.id}`, { reason: 'report' }))
-      return
-    }
-
-    setIsReportModalOpen(true)
-  }
-
   const handleSendReport = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (!currentUserId) {
-      router.push(buildLoginRedirectHref(`/item/${item.id}`, { reason: 'report' }))
+    if (!selectedReason) {
+      toast.error('Выберите причину жалобы')
       return
     }
 
     setIsReporting(true)
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-    const { error } = await (supabase.from('item_reports') as any).insert({
-      item_id: item.id,
-      reporter_id: currentUserId,
-      reason: selectedReason,
-    })
+      if (!user) {
+        toast.error('Необходимо войти в аккаунт')
+        return
+      }
 
-    setIsReporting(false)
+      const { error } = await (supabase.from('item_reports') as any).insert({
+        item_id: item.id,
+        reporter_id: user.id,
+        reason: selectedReason,
+        comment: comment,
+      })
 
-    if (error) {
-      toast.error(error.message || 'Не удалось отправить жалобу')
-      return
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+
+      toast.success('Жалоба отправлена')
+      setIsReportModalOpen(false)
+      setComment('')
+      setSelectedReason('')
+    } catch {
+      toast.error('Не удалось отправить жалобу')
+    } finally {
+      setIsReporting(false)
     }
-
-    setIsReportModalOpen(false)
-    toast.success('Жалоба отправлена')
   }
 
   const handleMessageClick = async () => {
@@ -273,14 +279,6 @@ export function ItemPageContent({ item, seller }: ItemPageContentProps) {
                   aria-label="В избранное"
                 >
                   <Heart className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOpenReportModal}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur"
-                  aria-label="Пожаловаться"
-                >
-                  <Flag className="h-5 w-5" />
                 </button>
               </div>
             </div>
@@ -395,6 +393,13 @@ export function ItemPageContent({ item, seller }: ItemPageContentProps) {
                   </button>
                 ))}
               </div>
+
+              <button
+                onClick={() => setIsReportModalOpen(true)}
+                className="mt-6 mb-8 flex w-full items-center justify-center rounded-2xl bg-[#F3F4F6] py-4 text-[15px] font-medium text-[#6B7280] transition-colors active:bg-gray-200"
+              >
+                Пожаловаться на объявление
+              </button>
             </div>
           ) : null}
         </section>
@@ -452,6 +457,14 @@ export function ItemPageContent({ item, seller }: ItemPageContentProps) {
                   <span className="text-sm text-slate-700">{reason}</span>
                 </label>
               ))}
+              {selectedReason ? (
+                <textarea
+                  placeholder="Опишите проблему подробнее (необязательно)"
+                  className="mt-4 min-h-[100px] w-full resize-none rounded-xl border border-gray-200 bg-gray-50 p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                />
+              ) : null}
 
               <div className="mt-5 flex gap-2">
                 <button
