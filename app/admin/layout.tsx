@@ -78,6 +78,7 @@ export default async function AdminLayout({
   const navItems = [
     { href: '/admin', label: 'Дашборд' },
     { href: '/admin/items', label: 'Объявления' },
+    { href: '/admin/reports', label: 'Жалобы' },
     { href: '/admin/deleted', label: 'Удаленные' },
     { href: '/admin/users', label: 'Пользователи' },
     { href: '/admin/support', label: 'Поддержка' },

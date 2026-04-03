@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { FileText, Headset, Home, Trash2, Users } from 'lucide-react'
+import { FileWarning, FileText, Headset, Home, Trash2, Users } from 'lucide-react'
 
 type NavItem = {
   href: string
@@ -24,6 +24,10 @@ function getNavIcon(href: string) {
 
   if (href === '/admin/support') {
     return Headset
+  }
+
+  if (href === '/admin/reports') {
+    return FileWarning
   }
 
   if (href === '/admin/deleted') {

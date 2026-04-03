@@ -293,12 +293,17 @@ export function ItemPageContent({ item, seller }: ItemPageContentProps) {
             <h1 className="mt-2 text-lg text-slate-900">{item.title}</h1>
           </div>
 
-          <div className="space-y-3 border-b border-slate-100 pb-5">
-            <div className="flex items-center gap-2">
+          <div className="border-b border-slate-100 pb-5">
+            <div className="flex items-center gap-3">
+              {seller.avatarUrl ? (
+                <img
+                  src={seller.avatarUrl}
+                  alt={`Аватар продавца ${seller.name || 'Собственник'}`}
+                  className="h-11 w-11 rounded-full object-cover"
+                />
+              ) : null}
               <p className="text-2xl font-bold text-slate-900">{seller.name || 'Собственник'}</p>
-              <span className="text-sm font-medium text-[#00AA5B]">в сети</span>
             </div>
-            <p className="text-sm text-slate-500">★ 5.0  2 отзыва</p>
           </div>
 
           {!isOwnItem ? (
