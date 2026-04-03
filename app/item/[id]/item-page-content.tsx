@@ -394,15 +394,23 @@ export function ItemPageContent({ item, seller }: ItemPageContentProps) {
                 ))}
               </div>
 
+            </div>
+          ) : null}
+        </section>
+
+        {!isOwnItem ? (
+          <>
+            {/* Premium Report Button */}
+            <div className="px-4 mt-12 mb-32">
               <button
                 onClick={() => setIsReportModalOpen(true)}
-                className="mt-6 mb-8 flex w-full items-center justify-center rounded-2xl bg-[#F3F4F6] py-4 text-[15px] font-medium text-[#6B7280] transition-colors active:bg-gray-200"
+                className="w-full bg-gray-100 text-gray-500 text-[15px] font-medium py-4 rounded-2xl active:bg-gray-200 transition-colors flex items-center justify-center"
               >
                 Пожаловаться на объявление
               </button>
             </div>
-          ) : null}
-        </section>
+          </>
+        ) : null}
       </div>
 
       {!isOwnItem ? (
