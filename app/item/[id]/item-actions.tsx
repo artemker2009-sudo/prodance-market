@@ -31,6 +31,10 @@ export function FavoriteToggle({
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite)
   const [isLoading, setIsLoading] = useState(false)
 
+  useEffect(() => {
+    setIsFavorite(initialIsFavorite)
+  }, [initialIsFavorite])
+
   const handleToggle = async (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault()
     event.stopPropagation()
@@ -40,16 +44,18 @@ export function FavoriteToggle({
       return
     }
 
+    const nextFavoriteState = !isFavorite
+    setIsFavorite(nextFavoriteState)
     setIsLoading(true)
 
-    if (isFavorite) {
+    if (!nextFavoriteState) {
       const { error } = await (supabase.from('favorites') as any)
         .delete()
         .eq('user_id', userId)
         .eq('item_id', itemId)
 
-      if (!error) {
-        setIsFavorite(false)
+      if (error) {
+        setIsFavorite(true)
       }
       setIsLoading(false)
       return
@@ -60,8 +66,8 @@ export function FavoriteToggle({
       item_id: itemId,
     })
 
-    if (!error) {
-      setIsFavorite(true)
+    if (error) {
+      setIsFavorite(false)
     }
     setIsLoading(false)
   }
