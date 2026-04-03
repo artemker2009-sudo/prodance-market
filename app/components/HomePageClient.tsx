@@ -288,11 +288,11 @@ export function HomePageClient({
                 e.preventDefault()
                 void fetchItems(activeCategory)
               }}
-              className="flex h-full w-full items-center gap-3"
+              className="flex h-full w-full items-center gap-2"
               role="search"
             >
               <Search className="h-5 w-5 text-slate-400" />
-              <div className="relative flex h-full w-full items-center">
+              <div className="flex h-full flex-1 items-center gap-2">
                 <input
                   type="search"
                   enterKeyHint="search"
@@ -300,9 +300,8 @@ export function HomePageClient({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Быстрый поиск по каталогу..."
                   aria-label="Поиск по каталогу"
-                  className="h-full w-full bg-transparent pr-8 text-base text-slate-700 placeholder:text-slate-400 focus:outline-none"
+                  className="h-full flex-1 bg-transparent text-base text-slate-700 placeholder:text-slate-400 focus:outline-none"
                 />
-                <button type="submit" className="hidden">Найти</button>
                 {searchQuery.length > 0 ? (
                   <button
                     type="button"
@@ -311,11 +310,17 @@ export function HomePageClient({
                       void fetchItems(activeCategory, '')
                     }}
                     aria-label="Очистить поиск"
-                    className="absolute right-0 inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
                 ) : null}
+                <button
+                  type="submit"
+                  className="ml-2 flex h-[34px] shrink-0 items-center justify-center rounded-full bg-slate-900 px-4 text-[13px] font-semibold text-white shadow-sm transition-transform hover:bg-slate-800 active:scale-95"
+                >
+                  Найти
+                </button>
               </div>
             </form>
             <button
