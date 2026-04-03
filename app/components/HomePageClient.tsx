@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { PackageOpen, Search, SlidersHorizontal, X } from 'lucide-react'
 
@@ -125,10 +124,10 @@ export function HomePageClient({
   initialFavoriteIds,
   initialErrorMessage,
 }: HomePageClientProps) {
-  const router = useRouter()
   const { session } = useAuth()
   const [items, setItems] = useState<Item[]>(initialItems)
   const [activeCategory, setActiveCategory] = useState<(typeof chips)[number]>('🔥 Все')
+  const [searchQuery, setSearchQuery] = useState('')
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
   const [priceFilter, setPriceFilter] = useState<PriceFilter>('any')
   const [conditionFilter, setConditionFilter] = useState<ConditionFilter>('any')
@@ -225,16 +224,24 @@ export function HomePageClient({
     return nextQuery
   }
 
-  const fetchItems = async (categoryChip: (typeof chips)[number]) => {
+  const fetchItems = async (
+    categoryChip: (typeof chips)[number],
+    searchOverride?: string
+  ) => {
     setIsLoadingItems(true)
     setErrorMessage('')
     setToastMessage('Обновляем подборку...')
+    const currentSearchQuery = (searchOverride ?? searchQuery).trim()
 
     let query = (supabase.from('items') as any)
       .select('id, title, price, image_urls, size, gender, category, condition')
       .eq('is_active', true)
       .is('archive_reason', null)
       .order('created_at', { ascending: false })
+
+    if (currentSearchQuery) {
+      query = query.or(`title.ilike.%${currentSearchQuery}%,category.ilike.%${currentSearchQuery}%`)
+    }
 
     query = applyCategoryFilter(query, categoryChip)
     query = applyAdditionalFilters(query)
@@ -275,17 +282,39 @@ export function HomePageClient({
 
         <section className="sticky top-0 z-40 bg-white/95 px-4 pb-2 pt-4 backdrop-blur-sm">
           <div className="flex h-14 items-center gap-3 rounded-full border border-slate-200 bg-slate-50/80 px-4 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.5)]">
-            <button
-              type="button"
-              onClick={() => router.push('/catalog?action=search')}
-              className="flex h-full w-full items-center gap-3 text-left"
-              aria-label="Быстрый поиск в каталоге"
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                void fetchItems(activeCategory)
+              }}
+              className="flex h-full w-full items-center gap-3"
+              role="search"
             >
               <Search className="h-5 w-5 text-slate-400" />
-              <span className="text-[15px] text-slate-400">
-                Быстрый поиск по каталогу...
-              </span>
-            </button>
+              <div className="relative flex h-full w-full items-center">
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Быстрый поиск по каталогу..."
+                  aria-label="Поиск по каталогу"
+                  className="h-full w-full bg-transparent pr-8 text-[15px] text-slate-700 placeholder:text-slate-400 focus:outline-none"
+                />
+                {searchQuery.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('')
+                      void fetchItems(activeCategory, '')
+                    }}
+                    aria-label="Очистить поиск"
+                    className="absolute right-0 inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </div>
+            </form>
             <button
               type="button"
               onClick={() => setIsFiltersOpen(true)}
