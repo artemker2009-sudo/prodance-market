@@ -283,6 +283,7 @@ export function HomePageClient({
         <section className="sticky top-0 z-40 bg-white/95 px-4 pb-2 pt-4 backdrop-blur-sm">
           <div className="flex h-14 items-center gap-3 rounded-full border border-slate-200 bg-slate-50/80 px-4 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.5)]">
             <form
+              action="."
               onSubmit={(e) => {
                 e.preventDefault()
                 void fetchItems(activeCategory)
@@ -294,11 +295,12 @@ export function HomePageClient({
               <div className="relative flex h-full w-full items-center">
                 <input
                   type="search"
+                  enterKeyHint="search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Быстрый поиск по каталогу..."
                   aria-label="Поиск по каталогу"
-                  className="h-full w-full bg-transparent pr-8 text-[15px] text-slate-700 placeholder:text-slate-400 focus:outline-none"
+                  className="h-full w-full bg-transparent pr-8 text-base text-slate-700 placeholder:text-slate-400 focus:outline-none"
                 />
                 {searchQuery.length > 0 ? (
                   <button
