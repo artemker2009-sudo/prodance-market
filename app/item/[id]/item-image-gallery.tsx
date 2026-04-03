@@ -43,11 +43,11 @@ export function ItemImageGallery({ imageUrls, title, topRightActions }: ItemImag
 
   return (
     <>
-      <div className="relative">
+      <div className="relative w-full min-h-[65vh] overflow-hidden rounded-t-[32px]">
         <div
           onScroll={handleScroll}
-          className="flex w-full snap-x snap-mandatory overflow-x-auto scrollbar-hide"
-          style={{ scrollbarWidth: 'none' }}
+          className="flex h-[70vh] min-h-[65vh] w-full snap-x snap-mandatory overflow-x-auto scroll-smooth scrollbar-hide"
+          style={{ scrollbarWidth: 'none', scrollBehavior: 'smooth' }}
         >
           {imageUrls.map((url, index) => (
             <button
@@ -57,7 +57,7 @@ export function ItemImageGallery({ imageUrls, title, topRightActions }: ItemImag
                 setFullscreenIndex(index)
                 setIsFullscreenOpen(true)
               }}
-              className="relative aspect-[4/3] min-w-full snap-center bg-slate-100"
+              className="relative min-h-[65vh] min-w-full snap-center overflow-hidden bg-slate-950"
               aria-label={`Открыть фото ${index + 1} на весь экран`}
             >
               <Image
@@ -65,31 +65,30 @@ export function ItemImageGallery({ imageUrls, title, topRightActions }: ItemImag
                 alt={`${title} — фото ${index + 1}`}
                 fill
                 sizes="(max-width: 768px) 100vw, 480px"
-                className="object-cover"
+                className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-2xl transition-all duration-[1600ms] ease-out"
+                unoptimized
+                aria-hidden
+              />
+              <Image
+                src={url}
+                alt={`${title} — фото ${index + 1}`}
+                fill
+                sizes="(max-width: 768px) 100vw, 480px"
+                className="relative z-10 h-full w-full object-contain transition-all duration-[1600ms] ease-out"
                 unoptimized
               />
             </button>
           ))}
         </div>
 
-        <div className="pointer-events-none absolute left-3 top-3 z-20 rounded-md bg-black/50 px-2 py-1 text-xs font-medium text-white">
-          {safeActiveIndex + 1} из {imageUrls.length}
+        <div className="pointer-events-none absolute right-6 top-6 z-30 text-sm font-medium tracking-wide text-white mix-blend-difference">
+          {safeActiveIndex + 1} / {imageUrls.length}
         </div>
 
         {topRightActions ? (
           <div className="absolute right-3 top-3 z-20 flex items-center gap-2">{topRightActions}</div>
         ) : null}
 
-        <div className="pointer-events-none absolute bottom-12 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/30 px-3 py-1.5 backdrop-blur-sm">
-          {imageUrls.map((_, index) => (
-            <span
-              key={`dot-${index}`}
-              className={`h-2 w-2 rounded-full transition-all ${
-                index === safeActiveIndex ? 'bg-white' : 'bg-white/45'
-              }`}
-            />
-          ))}
-        </div>
       </div>
 
       {isFullscreenOpen ? (

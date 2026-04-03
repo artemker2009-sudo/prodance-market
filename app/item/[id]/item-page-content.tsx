@@ -50,7 +50,7 @@ const quickQuestions = ['Ещё продаёте?', 'Торг уместен?', 
 
 function ProductImagePlaceholder() {
   return (
-    <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200">
+    <div className="relative h-[70vh] min-h-[65vh] w-full overflow-hidden rounded-t-[32px] bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.95),_transparent_45%),linear-gradient(180deg,rgba(255,255,255,0.3),rgba(226,232,240,0.9))]" />
       <div className="absolute inset-x-8 top-8 h-20 rounded-full bg-white/60 blur-3xl" />
       <div className="absolute inset-x-0 bottom-0 flex h-28 items-end justify-center pb-8">
