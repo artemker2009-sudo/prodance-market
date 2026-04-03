@@ -302,6 +302,7 @@ export function HomePageClient({
                   aria-label="Поиск по каталогу"
                   className="h-full w-full bg-transparent pr-8 text-base text-slate-700 placeholder:text-slate-400 focus:outline-none"
                 />
+                <button type="submit" className="hidden">Найти</button>
                 {searchQuery.length > 0 ? (
                   <button
                     type="button"
