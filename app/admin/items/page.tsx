@@ -4,6 +4,7 @@ import ItemsTableClient from './ItemsTableClient'
 type ItemRow = {
   id: string
   title: string
+  is_read?: boolean
   price: number | null
   seller_id: string | null
   image_urls: string[] | null

@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '../../lib/supabase-admin'
+import { markAllDeletedAsRead } from './actions'
 
 type DeletedItemProfile = {
   name?: string | null
@@ -51,11 +52,6 @@ function normalizeProfile(
 }
 
 export default async function AdminDeletedItemsPage() {
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
   const { data: stats, error } = await (supabaseAdmin.from('deleted_items_stats') as any)
     .select('*, profiles(*)')
     .order('deleted_at', { ascending: false })
@@ -64,8 +60,20 @@ export default async function AdminDeletedItemsPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Статистика удаленных объявлений</h1>
-      <p className="mt-2 text-sm text-slate-500">История удалений и причины ухода товаров с площадки.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Статистика удаленных объявлений</h1>
+          <p className="mt-2 text-sm text-slate-500">История удалений и причины ухода товаров с площадки.</p>
+        </div>
+        <form action={markAllDeletedAsRead}>
+          <button
+            type="submit"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+          >
+            Отметить все как прочитанные
+          </button>
+        </form>
+      </div>
 
       {error ? (
         <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">

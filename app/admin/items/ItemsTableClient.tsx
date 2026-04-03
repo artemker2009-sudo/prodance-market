@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 
 import { deleteItemAsAdmin } from '../../actions/admin'
+import { markItemAsRead } from './actions'
 
 type ItemRow = {
   id: string
   title: string
+  is_read?: boolean
   price: number | null
   seller_id: string | null
   image_urls: string[] | null
@@ -38,6 +41,7 @@ function getCover(imageUrls: string[] | null) {
 }
 
 export default function ItemsTableClient({ items: initialItems, initialError = '' }: ItemsTableClientProps) {
+  const router = useRouter()
   const [items, setItems] = useState<ItemRow[]>(initialItems)
   const [selectedItem, setSelectedItem] = useState<ItemRow | null>(null)
   const [error, setError] = useState(initialError)
@@ -113,6 +117,23 @@ export default function ItemsTableClient({ items: initialItems, initialError = '
   const formatPrice = (price: number | null | undefined) =>
     typeof price === 'number' ? `${price} ₽` : '—'
 
+  const handleOpenItem = (item: ItemRow) => {
+    setSelectedItem(item)
+
+    if (item.is_read === true) {
+      return
+    }
+
+    setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, is_read: true } : row)))
+    void markItemAsRead(item.id)
+      .then(() => {
+        router.refresh()
+      })
+      .catch((error) => {
+        console.error('Не удалось отметить объявление как прочитанное:', error)
+      })
+  }
+
   return (
     <div>
       <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Объявления</h1>
@@ -171,7 +192,7 @@ export default function ItemsTableClient({ items: initialItems, initialError = '
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
-                          onClick={() => setSelectedItem(item)}
+                          onClick={() => handleOpenItem(item)}
                           className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100"
                         >
                           Посмотреть

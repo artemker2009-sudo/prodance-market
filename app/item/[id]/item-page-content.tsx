@@ -340,7 +340,7 @@ export function ItemPageContent({ item, seller }: ItemPageContentProps) {
             <div className="flex items-center gap-2 text-slate-700">
               <MapPin className="h-4 w-4 text-red-500" />
               <p className="text-sm">
-                {item.address} • <span className="text-slate-500">11-15 мин.</span>
+                {item.address}
               </p>
             </div>
             {mapUrl ? (

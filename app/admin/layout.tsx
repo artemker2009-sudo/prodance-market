@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { LogOut, Shield } from 'lucide-react'
 import AdminSidebarNav from './AdminSidebarNav'
+import { supabaseAdmin } from '../lib/supabase-admin'
 
 const ADMIN_COOKIE = 'admin_token'
 const ADMIN_PASSWORD = 'Artem.ker.09'
@@ -75,11 +76,26 @@ export default async function AdminLayout({
     )
   }
 
+  const [
+    { count: unreadItems = 0 },
+    { count: unreadReports = 0 },
+    { count: unreadDeleted = 0 },
+  ] = await Promise.all([
+    (supabaseAdmin.from('items') as any).select('*', { count: 'exact', head: true }).eq('is_read', false),
+    (supabaseAdmin.from('item_reports') as any)
+      .select('*', { count: 'exact', head: true })
+      .eq('is_read', false)
+      .eq('status', 'pending'),
+    (supabaseAdmin.from('deleted_items_stats') as any)
+      .select('*', { count: 'exact', head: true })
+      .eq('is_read', false),
+  ])
+
   const navItems = [
     { href: '/admin', label: 'Дашборд' },
-    { href: '/admin/items', label: 'Объявления' },
-    { href: '/admin/reports', label: 'Жалобы' },
-    { href: '/admin/deleted', label: 'Удаленные' },
+    { href: '/admin/items', label: 'Объявления', unreadCount: unreadItems },
+    { href: '/admin/reports', label: 'Жалобы', unreadCount: unreadReports },
+    { href: '/admin/deleted', label: 'Удаленные', unreadCount: unreadDeleted },
     { href: '/admin/users', label: 'Пользователи' },
     { href: '/admin/support', label: 'Поддержка' },
   ]

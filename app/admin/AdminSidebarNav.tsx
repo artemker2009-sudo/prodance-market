@@ -7,6 +7,7 @@ import { FileWarning, FileText, Headset, Home, Trash2, Users } from 'lucide-reac
 type NavItem = {
   href: string
   label: string
+  unreadCount?: number
 }
 
 type Props = {
@@ -65,6 +66,11 @@ export default function AdminSidebarNav({ navItems }: Props) {
           >
             <Icon className="h-4 w-4" />
             <span>{item.label}</span>
+            {item.unreadCount && item.unreadCount > 0 ? (
+              <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                {item.unreadCount}
+              </span>
+            ) : null}
           </Link>
         )
       })}

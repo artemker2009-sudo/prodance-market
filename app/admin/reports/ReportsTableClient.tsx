@@ -1,9 +1,10 @@
 "use client";
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import { supabase } from '../../lib/supabase'
+import { deleteItemAndResolveReport, dismissReport, markReportAsRead } from './actions'
 
 type ItemPreview = {
   id: string
@@ -24,11 +25,14 @@ type ReporterProfile = {
 
 type ReportRow = {
   id: string
-  item_id: string
+  item_id: string | null
   reporter_id: string | null
   reason: string | null
   comment?: string | null
   created_at: string | null
+  status?: 'pending' | 'dismissed' | 'resolved'
+  is_read?: boolean
+  item_title_snapshot?: string | null
   items: ItemPreview | null
   profiles: ReporterProfile | ReporterProfile[] | null
 }
@@ -68,12 +72,42 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value))
 }
 
+function getReportStatusLabel(status: ReportRow['status']) {
+  if (status === 'dismissed') {
+    return 'Отклонена'
+  }
+
+  if (status === 'resolved') {
+    return 'Товар удален модератором'
+  }
+
+  return 'Новая'
+}
+
+function getReportStatusClassName(status: ReportRow['status']) {
+  if (status === 'dismissed') {
+    return 'border-slate-200 bg-slate-100 text-slate-700'
+  }
+
+  if (status === 'resolved') {
+    return 'border-red-200 bg-red-50 text-red-700'
+  }
+
+  return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+}
+
+function getItemTitle(report: ReportRow) {
+  return report.items?.title?.trim() || report.item_title_snapshot?.trim() || 'Без названия'
+}
+
 export default function ReportsTableClient({ initialReports, initialError = '' }: ReportsTableClientProps) {
+  const router = useRouter()
   const [reports, setReports] = useState<ReportRow[]>(initialReports)
   const [error, setError] = useState(initialError)
   const [busyReportId, setBusyReportId] = useState<string | null>(null)
   const [busyAction, setBusyAction] = useState<'delete-item' | 'dismiss' | null>(null)
   const [selectedReport, setSelectedReport] = useState<ReportRow | null>(null)
+  const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending')
   const [toastMessage, setToastMessage] = useState('')
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success')
 
@@ -106,6 +140,10 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
   }, [toastMessage])
 
   useEffect(() => {
+    setReports(initialReports)
+  }, [initialReports])
+
+  useEffect(() => {
     if (!selectedReport) {
       return
     }
@@ -128,21 +166,33 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
     setBusyReportId(report.id)
     setBusyAction('delete-item')
 
-    const { error: deleteError } = await (supabase.from('items') as any).delete().eq('id', report.item_id)
-
-    if (deleteError) {
-      setError(deleteError.message)
-      toast.error(deleteError.message || 'Не удалось удалить товар')
+    try {
+      const itemTitle = getItemTitle(report)
+      await deleteItemAndResolveReport(report.id, report.item_id, itemTitle)
+      setReports((prev) =>
+        prev.map((row) =>
+          row.id === report.id
+            ? {
+                ...row,
+                status: 'resolved',
+                item_title_snapshot: itemTitle,
+                item_id: null,
+                items: null,
+              }
+            : row
+        )
+      )
+      setSelectedReport(null)
+      toast.success('Товар удален, жалоба закрыта')
+      router.refresh()
+    } catch (caughtError) {
+      const message = caughtError instanceof Error ? caughtError.message : 'Не удалось удалить товар'
+      setError(message)
+      toast.error(message)
+    } finally {
       setBusyReportId(null)
       setBusyAction(null)
-      return
     }
-
-    setReports((prev) => prev.filter((row) => row.item_id !== report.item_id))
-    setSelectedReport((prev) => (prev?.item_id === report.item_id ? null : prev))
-    toast.success('Товар удален вместе с жалобами')
-    setBusyReportId(null)
-    setBusyAction(null)
   }
 
   const handleDismissReport = async (report: ReportRow) => {
@@ -150,23 +200,92 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
     setBusyReportId(report.id)
     setBusyAction('dismiss')
 
-    const { error: dismissError } = await (supabase.from('item_reports') as any)
-      .delete()
-      .eq('id', report.id)
-
-    if (dismissError) {
-      setError(dismissError.message)
-      toast.error(dismissError.message || 'Не удалось отклонить жалобу')
+    try {
+      await dismissReport(report.id)
+      setReports((prev) =>
+        prev.map((row) => (row.id === report.id ? { ...row, status: 'dismissed' } : row))
+      )
+      setSelectedReport(null)
+      toast.success('Жалоба отклонена')
+      router.refresh()
+    } catch (caughtError) {
+      const message = caughtError instanceof Error ? caughtError.message : 'Не удалось отклонить жалобу'
+      setError(message)
+      toast.error(message)
+    } finally {
       setBusyReportId(null)
       setBusyAction(null)
+    }
+  }
+
+  const handleOpenReport = (report: ReportRow) => {
+    setSelectedReport(report)
+
+    if (report.is_read) {
       return
     }
 
-    setReports((prev) => prev.filter((row) => row.id !== report.id))
-    setSelectedReport((prev) => (prev?.id === report.id ? null : prev))
-    toast.success('Жалоба отклонена')
-    setBusyReportId(null)
-    setBusyAction(null)
+    setReports((prev) => prev.map((row) => (row.id === report.id ? { ...row, is_read: true } : row)))
+    void markReportAsRead(report.id)
+      .then(() => {
+        router.refresh()
+      })
+      .catch((error) => {
+        console.error('Не удалось отметить жалобу как прочитанную:', error)
+      })
+  }
+
+  const pendingReports = useMemo(
+    () => reports.filter((report) => (report.status ?? 'pending') === 'pending'),
+    [reports]
+  )
+  const historyReports = useMemo(
+    () => reports.filter((report) => (report.status ?? 'pending') !== 'pending'),
+    [reports]
+  )
+  const activeReports = activeTab === 'pending' ? pendingReports : historyReports
+  const isHistoryReportOpen = selectedReport ? (selectedReport.status ?? 'pending') !== 'pending' : false
+
+  const emptyStateTitle = activeTab === 'pending' ? 'Новых жалоб пока нет' : 'История действий пока пуста'
+  const emptyStateDescription =
+    activeTab === 'pending'
+      ? 'Новые жалобы появятся здесь автоматически.'
+      : 'Отклоненные и решенные жалобы отобразятся в этом разделе.'
+
+  const renderStatusBadge = (status: ReportRow['status']) => (
+    <span
+      className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${getReportStatusClassName(status)}`}
+    >
+      {getReportStatusLabel(status)}
+    </span>
+  )
+
+  const renderTableActions = (report: ReportRow, isBusy: boolean, deletingItem: boolean, dismissing: boolean) => {
+    const status = report.status ?? 'pending'
+    if (status !== 'pending') {
+      return renderStatusBadge(status)
+    }
+
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => void handleDeleteItem(report)}
+          disabled={isBusy || !report.items?.id}
+          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+        >
+          {deletingItem ? 'Удаляем...' : 'Удалить товар'}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleDismissReport(report)}
+          disabled={isBusy}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+        >
+          {dismissing ? 'Отклоняем...' : 'Отклонить жалобу'}
+        </button>
+      </>
+    )
   }
 
   return (
@@ -174,16 +293,37 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
       <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Жалобы</h1>
       <p className="mt-2 text-sm text-slate-500">Модерация жалоб на товары маркетплейса</p>
 
+      <div className="mt-5 inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setActiveTab('pending')}
+          className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+            activeTab === 'pending' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          Новые жалобы
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('history')}
+          className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+            activeTab === 'history' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          История
+        </button>
+      </div>
+
       {error ? (
         <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
         </p>
       ) : null}
 
-      {!reports.length ? (
+      {!activeReports.length ? (
         <div className="mt-6 rounded-3xl border border-slate-200/70 bg-white px-6 py-14 text-center shadow-[0_14px_40px_rgba(15,23,42,0.08)]">
-          <p className="text-base font-medium text-slate-900">Жалоб пока нет</p>
-          <p className="mt-2 text-sm text-slate-500">Новые жалобы появятся здесь автоматически.</p>
+          <p className="text-base font-medium text-slate-900">{emptyStateTitle}</p>
+          <p className="mt-2 text-sm text-slate-500">{emptyStateDescription}</p>
         </div>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-3xl border border-slate-200/70 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.08)]">
@@ -199,7 +339,7 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {reports.map((report) => {
+              {activeReports.map((report) => {
                 const deletingItem = busyReportId === report.id && busyAction === 'delete-item'
                 const dismissing = busyReportId === report.id && busyAction === 'dismiss'
                 const isBusy = deletingItem || dismissing
@@ -212,10 +352,10 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
                           href={`/item/${report.items.id}`}
                           className="font-medium text-slate-900 underline-offset-4 transition hover:text-slate-600 hover:underline"
                         >
-                          {report.items.title || 'Без названия'}
+                          {getItemTitle(report)}
                         </Link>
                       ) : (
-                        <span className="text-slate-500">Товар уже удален</span>
+                        <span className="text-slate-500">{getItemTitle(report)}</span>
                       )}
                     </td>
                     <td className="px-4 py-4 text-slate-700">{getReporterName(report.profiles)}</td>
@@ -231,7 +371,7 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
                     <td className="px-4 py-4">
                       <button
                         type="button"
-                        onClick={() => setSelectedReport(report)}
+                        onClick={() => handleOpenReport(report)}
                         className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100"
                       >
                         Посмотреть
@@ -239,22 +379,7 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void handleDeleteItem(report)}
-                          disabled={isBusy || !report.items?.id}
-                          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60"
-                        >
-                          {deletingItem ? 'Удаляем...' : 'Удалить товар'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDismissReport(report)}
-                          disabled={isBusy}
-                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
-                        >
-                          {dismissing ? 'Отклоняем...' : 'Отклонить жалобу'}
-                        </button>
+                        {renderTableActions(report, isBusy, deletingItem, dismissing)}
                       </div>
                     </td>
                   </tr>
@@ -335,7 +460,7 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
                     </div>
                   ) : (
                     <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      This item no longer exists.
+                      Этот товар больше недоступен. {selectedReport.item_title_snapshot || 'Название не сохранено.'}
                     </p>
                   )}
                 </section>
@@ -366,26 +491,34 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
               </div>
 
               <div className="border-t border-slate-200 bg-white px-6 py-4">
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteItem(selectedReport)}
-                    disabled={
-                      (busyReportId === selectedReport.id && busyAction === 'dismiss') || !selectedReport.items?.id
-                    }
-                    className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60"
-                  >
-                    {busyReportId === selectedReport.id && busyAction === 'delete-item' ? 'Удаляем...' : 'Удалить товар'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDismissReport(selectedReport)}
-                    disabled={busyReportId === selectedReport.id && busyAction === 'delete-item'}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
-                  >
-                    {busyReportId === selectedReport.id && busyAction === 'dismiss' ? 'Отклоняем...' : 'Отклонить жалобу'}
-                  </button>
-                </div>
+                {isHistoryReportOpen ? (
+                  <div className="flex justify-end">{renderStatusBadge(selectedReport.status)}</div>
+                ) : (
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteItem(selectedReport)}
+                      disabled={
+                        (busyReportId === selectedReport.id && busyAction === 'dismiss') || !selectedReport.items?.id
+                      }
+                      className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                    >
+                      {busyReportId === selectedReport.id && busyAction === 'delete-item'
+                        ? 'Удаляем...'
+                        : 'Удалить товар'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDismissReport(selectedReport)}
+                      disabled={busyReportId === selectedReport.id && busyAction === 'delete-item'}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+                    >
+                      {busyReportId === selectedReport.id && busyAction === 'dismiss'
+                        ? 'Отклоняем...'
+                        : 'Отклонить жалобу'}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ) : null}

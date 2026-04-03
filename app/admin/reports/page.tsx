@@ -20,11 +20,14 @@ type ReporterProfile = {
 
 type ReportRow = {
   id: string
-  item_id: string
+  item_id: string | null
   reporter_id: string | null
   reason: string | null
   comment?: string | null
   created_at: string | null
+  status?: 'pending' | 'dismissed' | 'resolved'
+  is_read?: boolean
+  item_title_snapshot?: string | null
   items: ItemPreview | null
   profiles: ReporterProfile | ReporterProfile[] | null
 }
