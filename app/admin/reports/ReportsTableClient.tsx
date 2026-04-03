@@ -8,6 +8,10 @@ import { supabase } from '../../lib/supabase'
 type ItemPreview = {
   id: string
   title: string | null
+  price?: number | null
+  category?: string | null
+  description?: string | null
+  image_urls?: string[] | null
 }
 
 type ReporterProfile = {
@@ -69,6 +73,7 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
   const [error, setError] = useState(initialError)
   const [busyReportId, setBusyReportId] = useState<string | null>(null)
   const [busyAction, setBusyAction] = useState<'delete-item' | 'dismiss' | null>(null)
+  const [selectedReport, setSelectedReport] = useState<ReportRow | null>(null)
   const [toastMessage, setToastMessage] = useState('')
   const [toastTone, setToastTone] = useState<'success' | 'error'>('success')
 
@@ -100,6 +105,15 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
     }
   }, [toastMessage])
 
+  useEffect(() => {
+    if (!selectedReport) {
+      return
+    }
+
+    const nextSelected = reports.find((row) => row.id === selectedReport.id) ?? null
+    setSelectedReport(nextSelected)
+  }, [reports, selectedReport])
+
   const handleDeleteItem = async (report: ReportRow) => {
     if (!report.item_id) {
       toast.error('Не удалось определить товар')
@@ -125,6 +139,7 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
     }
 
     setReports((prev) => prev.filter((row) => row.item_id !== report.item_id))
+    setSelectedReport((prev) => (prev?.item_id === report.item_id ? null : prev))
     toast.success('Товар удален вместе с жалобами')
     setBusyReportId(null)
     setBusyAction(null)
@@ -148,6 +163,7 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
     }
 
     setReports((prev) => prev.filter((row) => row.id !== report.id))
+    setSelectedReport((prev) => (prev?.id === report.id ? null : prev))
     toast.success('Жалоба отклонена')
     setBusyReportId(null)
     setBusyAction(null)
@@ -178,6 +194,7 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
                 <th className="px-4 py-3">Кто пожаловался</th>
                 <th className="px-4 py-3">Причина и комментарий</th>
                 <th className="px-4 py-3">Дата</th>
+                <th className="px-4 py-3">Просмотр</th>
                 <th className="px-4 py-3 text-right">Действия</th>
               </tr>
             </thead>
@@ -212,6 +229,15 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
                     </td>
                     <td className="px-4 py-4 text-slate-600">{formatDateTime(report.created_at)}</td>
                     <td className="px-4 py-4">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedReport(report)}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100"
+                      >
+                        Посмотреть
+                      </button>
+                    </td>
+                    <td className="px-4 py-4">
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
@@ -238,6 +264,133 @@ export default function ReportsTableClient({ initialReports, initialError = '' }
           </table>
         </div>
       )}
+
+      <div
+        className={`fixed inset-0 z-[110] transition ${
+          selectedReport ? 'pointer-events-auto' : 'pointer-events-none'
+        }`}
+      >
+        <div
+          className={`absolute inset-0 bg-slate-900/30 transition-opacity duration-300 ${
+            selectedReport ? 'opacity-100' : 'opacity-0'
+          }`}
+          onClick={() => setSelectedReport(null)}
+        />
+
+        <aside
+          className={`absolute top-0 right-0 h-full w-full max-w-2xl transform bg-white shadow-[-24px_0_56px_rgba(15,23,42,0.2)] transition-transform duration-300 ${
+            selectedReport ? 'translate-x-0' : 'translate-x-full'
+          }`}
+          aria-hidden={!selectedReport}
+        >
+          {selectedReport ? (
+            <div className="flex h-full flex-col">
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <h2 className="text-lg font-semibold text-slate-950">Быстрый просмотр жалобы</h2>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReport(null)}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+                >
+                  Закрыть
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-5">
+                <section className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-500">Товар</h3>
+
+                  {selectedReport.items?.id ? (
+                    <div className="mt-4 space-y-4">
+                      {selectedReport.items.image_urls?.[0] ? (
+                        <img
+                          src={selectedReport.items.image_urls[0]}
+                          alt={selectedReport.items.title || 'Фото товара'}
+                          className="h-64 w-full rounded-2xl object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-64 w-full items-center justify-center rounded-2xl bg-slate-200 text-sm text-slate-500">
+                          Фото отсутствует
+                        </div>
+                      )}
+
+                      <div>
+                        <p className="text-xl font-semibold text-slate-950">
+                          {selectedReport.items.title || 'Без названия'}
+                        </p>
+                        <p className="mt-1 text-base font-medium text-slate-700">
+                          {new Intl.NumberFormat('ru-RU').format(selectedReport.items.price ?? 0)} сом
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Категория: {selectedReport.items.category?.trim() || 'Не указана'}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 bg-white p-4">
+                        <p className="text-sm font-semibold text-slate-900">Полное описание</p>
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                          {selectedReport.items.description?.trim() || 'Описание отсутствует'}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      This item no longer exists.
+                    </p>
+                  )}
+                </section>
+
+                <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+                  <h3 className="text-base font-semibold text-slate-950">Детали жалобы</h3>
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.08em] text-slate-500">Причина</p>
+                      <span className="mt-1 inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-sm font-medium text-red-700">
+                        {selectedReport.reason || 'Причина не указана'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.08em] text-slate-500">Комментарий</p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                        {selectedReport.comment?.trim() || 'Комментарий не оставлен'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.08em] text-slate-500">Кто пожаловался</p>
+                      <p className="mt-1 text-sm font-medium text-slate-900">{getReporterName(selectedReport.profiles)}</p>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div className="border-t border-slate-200 bg-white px-6 py-4">
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteItem(selectedReport)}
+                    disabled={
+                      (busyReportId === selectedReport.id && busyAction === 'dismiss') || !selectedReport.items?.id
+                    }
+                    className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                  >
+                    {busyReportId === selectedReport.id && busyAction === 'delete-item' ? 'Удаляем...' : 'Удалить товар'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDismissReport(selectedReport)}
+                    disabled={busyReportId === selectedReport.id && busyAction === 'delete-item'}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+                  >
+                    {busyReportId === selectedReport.id && busyAction === 'dismiss' ? 'Отклоняем...' : 'Отклонить жалобу'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </aside>
+      </div>
 
       {toastMessage ? (
         <div

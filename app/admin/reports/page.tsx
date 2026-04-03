@@ -4,6 +4,10 @@ import ReportsTableClient from './ReportsTableClient'
 type ItemPreview = {
   id: string
   title: string | null
+  price?: number | null
+  category?: string | null
+  description?: string | null
+  image_urls?: string[] | null
 }
 
 type ReporterProfile = {
@@ -27,7 +31,7 @@ type ReportRow = {
 
 export default async function AdminReportsPage() {
   const { data, error } = await (supabaseAdmin.from('item_reports') as any)
-    .select('*, items(id, title), profiles(*)')
+    .select('*, items(id, title, price, category, description, image_urls), profiles(*)')
     .order('created_at', { ascending: false })
 
   const reports = ((data ?? []) as ReportRow[]) ?? []

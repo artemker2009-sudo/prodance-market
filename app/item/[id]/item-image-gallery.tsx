@@ -81,8 +81,17 @@ export function ItemImageGallery({ imageUrls, title, topRightActions }: ItemImag
           ))}
         </div>
 
-        <div className="pointer-events-none absolute right-6 top-6 z-30 text-sm font-medium tracking-wide text-white mix-blend-difference">
-          {safeActiveIndex + 1} / {imageUrls.length}
+        <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 gap-1">
+          {imageUrls.map((_, index) => {
+            const isActive = index === safeActiveIndex
+            return (
+              <span
+                key={`dot-${index}`}
+                className={`h-2 w-2 rounded-full transition-colors ${isActive ? 'bg-white' : 'bg-gray-300/60'}`}
+                aria-hidden
+              />
+            )
+          })}
         </div>
 
         {topRightActions ? (
